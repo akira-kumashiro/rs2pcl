@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\denki\Documents\2018Kumashiro\rs2pcl\rs2pcl\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PCL_Grabber.cpp" />
+    <ClCompile Include="Device_Container.cpp" />
+    <ClCompile Include="MultiRealSense.cpp" />
+    <ClCompile Include="RealSense.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\denki\Documents\2018Kumashiro\rs2pcl\rs2pcl\CMakelists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{2D602954-6E6F-31F8-B74B-42FAB26CEE1A}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="example.hpp" />
+    <ClInclude Include="PCL_Grabber.h" />
+    <ClInclude Include="Device_Container.h" />
+    <ClInclude Include="MultiRealSense.h" />
+    <ClInclude Include="RealSense.h" />
+  </ItemGroup>
+</Project>
