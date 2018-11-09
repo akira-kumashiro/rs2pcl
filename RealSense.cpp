@@ -1,11 +1,28 @@
 #include "realsense.h"
 
 // Constructor
-RealSense::RealSense(const std::string serial_number, const std::string friendly_name) :
-	serial_number(serial_number),
-	friendly_name(friendly_name),
+//RealSense::RealSense(bool enableChangeLaserPower, const std::string serial_number, const std::string friendly_name) :
+//	serial_number(serial_number),
+//	friendly_name(friendly_name),
+//	enableChangeLaserPower(enableChangeLaserPower),
+//	cloud(new pcl::PointCloud<pcl::PointXYZRGB>)
+//{
+//	// Initialize
+//	initialize();
+//}
+
+RealSense::RealSense(const rs2::device & device) :
+	device(device),
 	cloud(new pcl::PointCloud<pcl::PointXYZRGB>)
 {
+	serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
+	friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+
+	if (friendly_name == "Intel RealSense SR300")
+	{
+		enableChangeLaserPower = true;
+	}
+
 	// Initialize
 	initialize();
 }
@@ -41,6 +58,8 @@ inline void RealSense::initializeSensor()
 	pipeline_profile = pipeline.start(config);
 
 	std::cout << "Realsense(" + serial_number + ") enabled" << std::endl;
+
+	setLaserPower(0);
 }
 
 // Finalize
@@ -56,16 +75,21 @@ void RealSense::finalize()
 // Update Data
 void RealSense::update()
 {
-	prevTime = nowTime;
-	nowTime = std::chrono::system_clock::now();
+	//prevTime = nowTime;
+	//nowTime = std::chrono::system_clock::now();
 
-	auto def = nowTime - prevTime;
+	//auto def = nowTime - prevTime;
+
+	setLaserPower(16);
+
+	cv::waitKey(300);
 
 	// Update Frame
 	updateFrame();
 
 	// Update Depth
 	updateDepth();
+
 	// Generate the pointcloud and texture mappings
 	points = pc.calculate(depth_frame);
 
@@ -75,6 +99,7 @@ void RealSense::update()
 	//pointcloud¶¬
 	pc.map_to(color_frame);
 	cloud = calcPointCloud(points);
+	setLaserPower(0);
 }
 
 // Update Frame
@@ -228,6 +253,41 @@ inline void RealSense::showDepth()
 	cv::imshow("Depth - " + friendly_name + " (" + serial_number + " )", scale_mat);
 }
 
+inline void RealSense::setLaserPower(int num)
+{
+	if (!enableChangeLaserPower)
+	{
+		std::cout << "ret-laser" << std::endl;
+		return;
+	}
+	auto sensor = device.query_sensors()[0];
+	rs2_option optionType = static_cast<rs2_option>(13);
+	if (!sensor.supports(optionType))
+	{
+		std::cout << "ret-option" << std::endl;
+		return;
+	}
+
+	const char* description = sensor.get_option_description(optionType);
+	std::cout << description << std::endl;
+
+	auto range = sensor.get_option_range(optionType);
+	if (range.min <= num && range.max >= num)
+	{
+		std::cout << "change" << std::endl;
+		try
+		{
+			sensor.set_option(optionType, (float)num);
+		}
+		catch (const rs2::error& e)
+		{
+			// Some options can only be set while the camera is streaming,
+			// and generally the hardware might fail so it is good practice to catch exceptions from set_option
+			std::cerr << "Failed to set option " << optionType << ". (" << e.what() << ")" << std::endl;
+		}
+	}
+}
+
 bool RealSense::saveData(std::string directory, std::string name)
 {
 	cv::Mat tmp;
@@ -243,8 +303,8 @@ bool RealSense::saveData(std::string directory, std::string name)
 	//if (isCloudArrived[CLOUD_NEAR])
 	/*if (near_point_cloud_ptr->size() != 0)
 		pcl::io::savePCDFileBinary(directory + "-PCLNear" + name + ".pcd", *near_point_cloud_ptr);*/
-	//if (tip_point_cloud_ptr->size() != 0)
-	//	pcl::io::savePCDFileBinary(directory + "-PCLTip" + name + ".pcd", *tip_point_cloud_ptr);
+		//if (tip_point_cloud_ptr->size() != 0)
+		//	pcl::io::savePCDFileBinary(directory + "-PCLTip" + name + ".pcd", *tip_point_cloud_ptr);
 
 
 	tmp = readDepth(directory + "-Depth" + name) * 0x60 / 0x10000;

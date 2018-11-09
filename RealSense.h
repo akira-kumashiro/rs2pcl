@@ -46,6 +46,7 @@ private:
 	rs2::pipeline pipeline;
 	rs2::pipeline_profile pipeline_profile;
 	rs2::frameset frameset;
+	rs2::device device;
 	std::string serial_number;
 	std::string friendly_name;
 
@@ -73,9 +74,12 @@ private:
 	// We want the points object to be persistent so we can display the last cloud when a frame drops
 	rs2::points points;
 
+	bool enableChangeLaserPower = false;
+
 public:
 	// Constructor
-	RealSense(const std::string serial_number, const std::string friendly_name = "");
+	//RealSense(bool enableChangeLaserPower, const std::string serial_number, const std::string friendly_name = "");
+	RealSense(const rs2::device& device);
 
 	// Destructor
 	~RealSense();
@@ -124,6 +128,8 @@ private:
 
 	// Show Depth
 	inline void showDepth();
+
+	inline void setLaserPower(int num);
 
 	cv::Mat readDepth(const std::string name);
 	void writeDepth(const std::string name);

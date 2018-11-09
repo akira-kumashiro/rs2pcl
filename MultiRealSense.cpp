@@ -79,11 +79,24 @@ void MultiRealSense::initialize()
 inline void MultiRealSense::initializeSensor(const rs2::device& device)
 {
 	// Retrive Serial Number (and Friendly Name)
-	const std::string serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
-	const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+	//const std::string serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
+	//const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+
+	//bool enableChangeLaserPower = false;
+
+	//if (device.supports(RS2_CAMERA_INFO_NAME))
+	//{
+	//	if (device.get_info(RS2_CAMERA_INFO_NAME) == "Intel RealSense SR300")
+	//	{
+	//		enableChangeLaserPower = true;
+	//	}
+	//}
+
+	//auto sensor = device.query_sensors()[0];
 
 	// Add Sensor to Container
-	realsenses.push_back(std::make_unique<RealSense>(serial_number, friendly_name));
+	//realsenses.push_back(std::make_unique<RealSense>(enableChangeLaserPower,serial_number, friendly_name));
+	realsenses.push_back(std::make_unique<RealSense>(device));
 }
 
 inline void MultiRealSense::initializeViewer()
@@ -111,6 +124,9 @@ void MultiRealSense::finalize()
 bool MultiRealSense::keyboardCallBackSettings(int key)
 {
 	cv::Mat tmp;
+
+	if (key==0)
+		return true;
 
 	switch (key)
 	{
