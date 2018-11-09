@@ -9,6 +9,8 @@
 #include <vector>
 #include <memory>
 
+#include <windows.h>
+
 class MultiRealSense
 {
 private:
@@ -40,6 +42,36 @@ private:
 
 	// Finalize
 	void finalize();
+
+	bool keyboardCallBackSettings(int key);
+	void keyboardCallback(const pcl::visualization::KeyboardEvent& event, void*);
+
+	enum
+	{
+		CV_WAITKEY_CURSORKEY_TOP = 2490368,
+		CV_WAITKEY_CURSORKEY_BOTTOM = 2621440,
+		CV_WAITKEY_CURSORKEY_RIGHT = 2555904,
+		CV_WAITKEY_CURSORKEY_LEFT = 2424832,
+	};
+
+	//ƒNƒ‰ƒX“à•Ï”
+	wchar_t directoryName[20];
+	char nallowDirectoryName[20];
+	std::string dataFileName;
+	std::ofstream dataFile;
+	inline std::string makeNameFolder(int hrgn);
+	inline std::string makeNameFail(int hrgn, int num);
+	inline void printText(int hrgn, int num);
+	inline std::string getTime(void);
+
+	const int numMax = 9; // •Û‘¶‚·‚éˆê•¶š‚Ì”
+
+	const std::string dataFolderName = "Data";
+
+	int num = 0; // ”Ô†Ši”[—p
+	int hrgn = 0; // •¶šŠi”[—p
+
+	std::string _time;
 };
 
 #endif // __MULTIREALSENSE__

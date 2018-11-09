@@ -22,6 +22,8 @@ void RealSense::initialize()
 {
 	cv::setUseOptimized(true);
 
+	nowTime = std::chrono::system_clock::now();
+
 	// Initialize Sensor
 	initializeSensor();
 }
@@ -37,6 +39,8 @@ inline void RealSense::initializeSensor()
 
 	// Start Pipeline
 	pipeline_profile = pipeline.start(config);
+
+	std::cout << "Realsense(" + serial_number + ") enabled" << std::endl;
 }
 
 // Finalize
@@ -52,6 +56,11 @@ void RealSense::finalize()
 // Update Data
 void RealSense::update()
 {
+	prevTime = nowTime;
+	nowTime = std::chrono::system_clock::now();
+
+	auto def = nowTime - prevTime;
+
 	// Update Frame
 	updateFrame();
 
@@ -161,9 +170,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 			vertices_mat.at<cv::Vec3f>(index) = cv::Vec3f(vertex.x, vertex.y, vertex.z);
 
 			//mmをmに変換(符号はお好みで)
-			point.x = -vertex.x / 1000;
-			point.y = -vertex.y / 1000;
-			point.z = vertex.z / 1000;
+			point.x = -vertex.x;
+			point.y = -vertex.y;
+			point.z = vertex.z;
 
 			// Set Texture to cv::Mat const
 			auto texture_coordinate = texture_coordinates[index];
@@ -218,3 +227,105 @@ inline void RealSense::showDepth()
 	// Show Depth Image
 	cv::imshow("Depth - " + friendly_name + " (" + serial_number + " )", scale_mat);
 }
+
+bool RealSense::saveData(std::string directory, std::string name)
+{
+	cv::Mat tmp;
+
+	flip(color_mat, tmp, 1); // 反転
+	cv::imwrite(directory + "-Color" + name + ".tif", tmp); // color画像保存
+	flip(depth_mat, tmp, 1); // 反転
+	imwrite(directory + "-Depth見る用" + name + ".tif", tmp * 0x60 / 0x100); // depth見る用画像保存
+	writeDepth(directory + "-Depth" + name); // depth画像保存
+	//if (isCloudArrived[CLOUD_CAMERA])
+	if (cloud->size() != 0)
+		pcl::io::savePCDFileBinary(directory + "-PCLCamera" + name + ".pcd", *cloud);
+	//if (isCloudArrived[CLOUD_NEAR])
+	/*if (near_point_cloud_ptr->size() != 0)
+		pcl::io::savePCDFileBinary(directory + "-PCLNear" + name + ".pcd", *near_point_cloud_ptr);*/
+	//if (tip_point_cloud_ptr->size() != 0)
+	//	pcl::io::savePCDFileBinary(directory + "-PCLTip" + name + ".pcd", *tip_point_cloud_ptr);
+
+
+	tmp = readDepth(directory + "-Depth" + name) * 0x60 / 0x10000;
+
+	cv::imshow("保存済み", tmp); // 保存したものの表示
+	return true;
+}
+
+cv::Mat RealSense::readDepth(const std::string name)
+{
+	std::fstream fs;
+
+	std::string dir = name;
+
+	// 拡張子がついているか
+	std::string suffix = "." + extension;
+	if (dir.size() < suffix.size() || dir.find(suffix, dir.size() - suffix.size()) == std::string::npos)
+		dir += suffix;
+
+	fs.open(dir, std::ios::in | std::ios::binary);
+	if (!fs.is_open())
+		throw std::runtime_error("depth32f画像の読み込みファイルの呼び出しに失敗");
+
+	dptHeader header;
+
+	if (!fs.read((char*)(&header.size), sizeof(header.size))
+		|| !fs.read((char*)(&header.identifier), sizeof(header) - sizeof(header.size))
+		|| !fs.seekg(header.size))
+		throw std::runtime_error("depth32f画像のヘッダの読み込みに失敗");
+
+	cv::Mat img(header.height, header.width, header.type);
+
+	if (!fs.read((char*)(img.data), img.total() * img.elemSize()))
+		throw std::runtime_error("depth32f画像のデータの読み込みに失敗");
+
+	fs.close();
+
+	if (enableMirror != (header.data1 & 1 << d1_mirror)) // ミラーするか
+	{
+		cv::flip(img.clone(), img, 1); // 反転
+	}
+
+	return img.clone();
+}
+
+void RealSense::writeDepth(const std::string name)
+{
+	cv::Mat matDepth = depth_mat;
+	std::fstream fs;
+
+	std::string dir = name;
+
+	// 拡張子がついているか
+	std::string suffix = "." + extension;
+	if (dir.size() < suffix.size() || dir.find(suffix, dir.size() - suffix.size()) == std::string::npos)
+		dir += suffix;
+
+	fs.open(dir, std::ios::out | std::ios::binary);
+
+	if (!fs.is_open())
+		throw std::runtime_error("depth32f画像の書き込みファイルの呼び出しに失敗");
+
+	if (enableMirror != isSaveMirror) // ミラーするか
+	{
+		cv::flip(matDepth.clone(), matDepth, 1); // 反転
+	}
+
+	dptHeader header;
+	header.width = matDepth.cols;
+	header.height = matDepth.rows;
+	header.type = matDepth.type();
+	if (isSaveMirror) // ミラーしているか
+	{
+		header.data1 |= 1 << d1_mirror; // ヘッダにミラー情報書き込み
+	}
+
+	if (!fs.write((const char*)(&header), sizeof(header)) // ヘッダ書き込み
+		|| !fs.seekp(header.size) // ポインタ位置移動
+		|| !fs.write((const char*)(matDepth.data), matDepth.total() * matDepth.elemSize())) // データ書き込み
+		throw std::runtime_error("depth32f画像の書き込みに失敗");
+
+	fs.close();
+}
+
