@@ -1,3 +1,0 @@
-C:/Users/denki/Documents/2018Kumashiro/rs2pcl/rs2pcl/CMakeFiles/project.dir
-C:/Users/denki/Documents/2018Kumashiro/rs2pcl/rs2pcl/CMakeFiles/ALL_BUILD.dir
-C:/Users/denki/Documents/2018Kumashiro/rs2pcl/rs2pcl/CMakeFiles/ZERO_CHECK.dir
