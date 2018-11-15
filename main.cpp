@@ -377,11 +377,17 @@
 
 int main(int argc, char* argv[])
 {
-	try {
+	try 
+	{
 		MultiRealSense multirealsense;
 		multirealsense.run();
 	}
-	catch (std::exception& ex) {
+	catch (rs2::error &e)
+	{
+		std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
+	}
+	catch (std::exception& ex) 
+	{
 		std::cout << ex.what() << std::endl;
 	}
 

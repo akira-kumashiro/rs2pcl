@@ -6,6 +6,18 @@
 #include <librealsense2/rs.hpp>
 #include <opencv2/opencv.hpp>
 
+#include <boost/format.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/thread/thread.hpp>
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <pcl/common/common_headers.h>
+//#include <pcl/features/normal_3d.h>
+//#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/console/parse.h>
+
 #include <vector>
 #include <memory>
 
@@ -30,12 +42,15 @@ public:
 	// Processing
 	void run();
 
+	//デバイスが外された時の処理
+	//void removeDevice(const rs2::event_information& info);
+	
 private:
-	// Initialize
-	void initialize();
-
 	// Initialize Sensor センサーの登録
 	inline void initializeSensor(const rs2::device& device);
+
+	// Initialize
+	void initialize();
 
 	//pclのviewerの初期設定
 	inline void initializeViewer();
@@ -63,6 +78,7 @@ private:
 	inline std::string makeNameFail(int hrgn, int num);
 	inline void printText(int hrgn, int num);
 	inline std::string getTime(void);
+	void updateViewerText(void);
 
 	const int numMax = 9; // 保存する一文字の数
 
@@ -72,6 +88,9 @@ private:
 	int hrgn = 0; // 文字格納用
 
 	std::string _time;
+	
+	//どうでもいいWebカメラとかは全部この名前になる
+	const std::string platformCameraName = "Platform Camera";
 };
 
 #endif // __MULTIREALSENSE__

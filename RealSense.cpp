@@ -13,18 +13,16 @@
 
 RealSense::RealSense(const rs2::device & device) :
 	device(device),
-	cloud(new pcl::PointCloud<pcl::PointXYZRGB>)
+	camera_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
+	tip_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
+	hand_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>)
 {
-	serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
-	friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
-
-	if (friendly_name == "Intel RealSense SR300")
-	{
-		enableChangeLaserPower = true;
-	}
-
 	// Initialize
 	initialize();
+
+	//setLaserPower(range.min);
+
+	nowTime = std::chrono::system_clock::now();
 }
 
 // Destructor
@@ -48,6 +46,13 @@ void RealSense::initialize()
 // Initialize Sensor
 inline void RealSense::initializeSensor()
 {
+	serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
+	friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+
+	//if (friendly_name == "Intel RealSense SR300")
+	//	enableChangeLaserPower = true;
+
+	range = device.query_sensors()[0].get_option_range(optionType);
 	// Set Device Config
 	rs2::config config;
 	config.enable_device(serial_number);
@@ -57,9 +62,7 @@ inline void RealSense::initializeSensor()
 	// Start Pipeline
 	pipeline_profile = pipeline.start(config);
 
-	std::cout << "Realsense(" + serial_number + ") enabled" << std::endl;
-
-	setLaserPower(0);
+	std::cout << friendly_name << "(" + serial_number + ") enabled" << std::endl;
 }
 
 // Finalize
@@ -75,14 +78,28 @@ void RealSense::finalize()
 // Update Data
 void RealSense::update()
 {
-	//prevTime = nowTime;
-	//nowTime = std::chrono::system_clock::now();
+	setLaserPower(range.def);
 
-	//auto def = nowTime - prevTime;
+	excuteUpdate();
 
-	setLaserPower(16);
+	setLaserPower(range.min);
+}
 
-	cv::waitKey(300);
+// Update Frame
+inline void RealSense::updateFrame()
+{
+	// Update Frame
+	frameset = pipeline.wait_for_frames();
+}
+
+inline void RealSense::excuteUpdate()
+{
+	prevTime = nowTime;
+	nowTime = std::chrono::system_clock::now();
+
+	auto def = nowTime - prevTime;
+
+	fps = 1000 / std::chrono::duration<double, std::milli>(def).count();
 
 	// Update Frame
 	updateFrame();
@@ -98,15 +115,7 @@ void RealSense::update()
 
 	//pointcloudê∂ê¨
 	pc.map_to(color_frame);
-	cloud = calcPointCloud(points);
-	setLaserPower(0);
-}
-
-// Update Frame
-inline void RealSense::updateFrame()
-{
-	// Update Frame
-	frameset = pipeline.wait_for_frames();
+	camera_cloud_ptr = calcPointCloud(points);
 }
 
 // Update Color
@@ -169,11 +178,11 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-	auto sp = points.get_profile().as<rs2::video_stream_profile>();
-	cloud_temp->width = sp.width();
-	cloud_temp->height = sp.height();
-	cloud_temp->is_dense = false;
-	cloud_temp->points.resize(points.size());
+	//auto sp = points.get_profile().as<rs2::video_stream_profile>();
+	//cloud_temp->width = sp.width();
+	//cloud_temp->height = sp.height();
+	//cloud_temp->is_dense = false;
+	//cloud_temp->points.resize(points.size());
 
 	// Retrieve Vetrices
 	auto vertices = points.get_vertices();
@@ -182,8 +191,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 	auto texture_coordinates = points.get_texture_coordinates();
 
 	// Create cv::Mat from Vertices and Texture
-	cv::Mat vertices_mat = cv::Mat::zeros(depthSize, CV_32FC3);
-	cv::Mat texture_mat = cv::Mat::zeros(depthSize, CV_8UC3);
+	vertices_mat = cv::Mat::zeros(depthSize, CV_32FC3);
+	texture_mat = cv::Mat::zeros(depthSize, CV_8UC3);
 
 	for (int32_t index = 0; index < points.size(); index++)
 	{
@@ -203,7 +212,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 			auto texture_coordinate = texture_coordinates[index];
 			uint32_t x = static_cast<uint32_t>(texture_coordinate.u * static_cast<float>(colorSize.width)); // [0.0, 1.0) -> [0, width)
 			uint32_t y = static_cast<uint32_t>(texture_coordinate.v * static_cast<float>(colorSize.height)); // [0.0, 1.0) -> [0, height)
-			if ((0 <= x) && (x < colorSize.width) && (0 <= y) && (y < colorSize.height) && !(x == 0 && y == 0))
+			if (x == 0 && y == 0)
+				continue;
+			if ((0 <= x) && (x < colorSize.width) && (0 <= y) && (y < colorSize.height))
 			{
 				texture_mat.at<cv::Vec3b>(index) = color_mat.at<cv::Vec3b>(y, x);
 				point.r = color_mat.at<cv::Vec3b>(y, x)[2];
@@ -219,14 +230,14 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 			cloud_temp->points.push_back(point);
 		}
 	}
-
 	return cloud_temp;
 }
 
 // Show Color
 inline void RealSense::showColor()
 {
-	if (color_mat.empty()) {
+	if (color_mat.empty())
+	{
 		return;
 	}
 
@@ -237,7 +248,8 @@ inline void RealSense::showColor()
 // Show Depth
 inline void RealSense::showDepth()
 {
-	if (depth_mat.empty()) {
+	if (depth_mat.empty())
+	{
 		return;
 	}
 
@@ -253,37 +265,37 @@ inline void RealSense::showDepth()
 	cv::imshow("Depth - " + friendly_name + " (" + serial_number + " )", scale_mat);
 }
 
-inline void RealSense::setLaserPower(int num)
+inline void RealSense::setLaserPower(float num)
 {
-	if (!enableChangeLaserPower)
-	{
-		std::cout << "ret-laser" << std::endl;
-		return;
-	}
+	//if (!enableChangeLaserPower)
+	//{
+	//	std::cout << "ret-laser" << std::endl;
+	//	return;
+	//}
 	auto sensor = device.query_sensors()[0];
-	rs2_option optionType = static_cast<rs2_option>(13);
 	if (!sensor.supports(optionType))
 	{
-		std::cout << "ret-option" << std::endl;
+		//std::cout << "ret-option" << std::endl;
 		return;
 	}
 
-	const char* description = sensor.get_option_description(optionType);
-	std::cout << description << std::endl;
+	//const char* description = sensor.get_option_description(optionType);
+	//std::cout << description << std::endl;
 
-	auto range = sensor.get_option_range(optionType);
+	//auto range = sensor.get_option_range(optionType);
 	if (range.min <= num && range.max >= num)
 	{
-		std::cout << "change" << std::endl;
+		//std::cout << "change" << std::endl;
 		try
 		{
-			sensor.set_option(optionType, (float)num);
+			std::cout << friendly_name << "laser power changed" << std::endl;
+			sensor.set_option(optionType, num);
 		}
 		catch (const rs2::error& e)
 		{
 			// Some options can only be set while the camera is streaming,
 			// and generally the hardware might fail so it is good practice to catch exceptions from set_option
-			std::cerr << "Failed to set option " << optionType << ". (" << e.what() << ")" << std::endl;
+			std::cerr << friendly_name << "(" << serial_number << ") Failed to set option " << optionType << ". (" << e.what() << ")" << std::endl;
 		}
 	}
 }
@@ -298,8 +310,8 @@ bool RealSense::saveData(std::string directory, std::string name)
 	imwrite(directory + "-Depthå©ÇÈóp" + name + ".tif", tmp * 0x60 / 0x100); // depthå©ÇÈópâÊëúï€ë∂
 	writeDepth(directory + "-Depth" + name); // depthâÊëúï€ë∂
 	//if (isCloudArrived[CLOUD_CAMERA])
-	if (cloud->size() != 0)
-		pcl::io::savePCDFileBinary(directory + "-PCLCamera" + name + ".pcd", *cloud);
+	if (camera_cloud_ptr->size() != 0)
+		pcl::io::savePCDFileBinary(directory + "-PCLCamera" + name + ".pcd", *camera_cloud_ptr);
 	//if (isCloudArrived[CLOUD_NEAR])
 	/*if (near_point_cloud_ptr->size() != 0)
 		pcl::io::savePCDFileBinary(directory + "-PCLNear" + name + ".pcd", *near_point_cloud_ptr);*/
@@ -389,3 +401,102 @@ void RealSense::writeDepth(const std::string name)
 	fs.close();
 }
 
+void RealSense::setTipCloud()
+{
+	HandDetect det(0.2, 0.6);
+	cv::Mat colorMappedToDepthTemp = texture_mat.clone();
+	cv::Mat tipPosMat = cv::Mat::zeros(depthSize, CV_8U);
+
+	std::vector<cv::Point> tipPos = det.getTipData(depth_mat.clone(), texture_mat.clone());
+	//colorMappedToDepth = det.colorMarked.clone();
+	cv::Mat handMask = det.contourMask.clone();
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr tip_cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr hand_cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
+	if (tipPos[0] == cv::Point(-1, -1))
+	{
+		tip_cloud_ptr = tip_cloud_temp;
+		hand_cloud_ptr = hand_cloud_temp;
+		return;
+	}
+
+	for (int i = 0; i < tipPos.size(); i++)
+	{
+		uchar *tipPosMatPtr = tipPosMat.ptr<uchar>(tipPos[i].y);
+		tipPosMatPtr[tipPos[i].x] = 255;
+	}
+
+	for (int y = 0; y < depth_mat.rows; y++)
+	{
+		cv::Vec3f *vertices_mat_ptr = vertices_mat.ptr<cv::Vec3f>(y);
+		uchar *handMaskPtr = handMask.ptr<uchar>(y);
+		cv::Vec3b *colorMappedToDepthTempPtr = colorMappedToDepthTemp.ptr<cv::Vec3b>(y);
+		uchar* tipPosMatPtr = tipPosMat.ptr<uchar>(y);
+
+		for (int x = 0; x < depth_mat.cols; x++)
+		{
+			if (tipPosMatPtr[x] != 255 && handMaskPtr[x] != 255)
+				continue;
+			pcl::PointXYZRGB point;//Unit:m
+
+			point.x = -vertices_mat_ptr[x][0];
+			point.y = -vertices_mat_ptr[x][1];
+			point.z = vertices_mat_ptr[x][2];
+			if (handMaskPtr[x] == 255)
+			{
+				point.r = colorMappedToDepthTempPtr[x][2];
+				point.g = colorMappedToDepthTempPtr[x][1];
+				point.b = colorMappedToDepthTempPtr[x][0];
+
+				hand_cloud_temp->points.push_back(point);
+			}
+			if (tipPosMatPtr[x] == 255)
+			{
+				point.r = 255;
+				point.g = 0;
+				point.b = 0;
+
+				tip_cloud_temp->points.push_back(point);
+			}
+		}
+	}
+
+	tip_cloud_ptr = tip_cloud_temp;
+	hand_cloud_ptr = hand_cloud_temp;
+}
+
+SR300::SR300(const rs2::device & device) :
+	RealSense(device)
+{
+	setLaserPower(range.min);
+}
+
+SR300::~SR300()
+{
+	//RealSense::finalize();
+}
+
+void SR300::update()
+{
+	setLaserPower(range.def);
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(80));
+
+	excuteUpdate();
+
+	setLaserPower(range.min);
+}
+
+D400::D400(const rs2::device & device) :
+	RealSense(device)
+{
+}
+
+D400::~D400()
+{
+	//RealSense::finalize();
+}
+
+void D400::update()
+{
+	excuteUpdate();
+}

@@ -263,10 +263,12 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="HandDetect.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Device_Container.cpp" />
     <ClCompile Include="MultiRealSense.cpp" />
     <ClCompile Include="PCL_Grabber.cpp" />
+    <ClCompile Include="PCL_Regist.cpp" />
     <ClCompile Include="RealSense.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -278,8 +280,10 @@
   <ItemGroup>
     <ClInclude Include="Device_Container.h" />
     <ClInclude Include="example.hpp" />
+    <ClInclude Include="HandDetect.h" />
     <ClInclude Include="MultiRealSense.h" />
     <ClInclude Include="PCL_Grabber.h" />
+    <ClInclude Include="PCL_Regist.h" />
     <ClInclude Include="RealSense.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

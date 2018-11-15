@@ -4,24 +4,54 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PCL_Grabber.cpp" />
-    <ClCompile Include="Device_Container.cpp" />
-    <ClCompile Include="MultiRealSense.cpp" />
-    <ClCompile Include="RealSense.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="CMakelists.txt" />
+    <ClCompile Include="Device_Container.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MultiRealSense.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PCL_Grabber.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PCL_Regist.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RealSense.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HandDetect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{2D602954-6E6F-31F8-B74B-42FAB26CEE1A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{5c3eac13-fbef-4558-80fc-2ed577d8224b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="example.hpp" />
-    <ClInclude Include="PCL_Grabber.h" />
-    <ClInclude Include="Device_Container.h" />
-    <ClInclude Include="MultiRealSense.h" />
-    <ClInclude Include="RealSense.h" />
+    <ClInclude Include="Device_Container.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="example.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MultiRealSense.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PCL_Grabber.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PCL_Regist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RealSense.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HandDetect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

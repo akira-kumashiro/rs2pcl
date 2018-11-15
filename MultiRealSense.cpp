@@ -20,9 +20,13 @@ MultiRealSense::~MultiRealSense()
 // Processing
 void MultiRealSense::run()
 {
+	//if (realsenses.size() == 0)
+	//	return;
 	// Main Loop
-	while (true) {
-		for (std::unique_ptr<RealSense>& realsense : realsenses) {
+	while (!viewer->wasStopped())//while(1)とかだったらエラーが出る
+	{
+		for (std::unique_ptr<RealSense>& realsense : realsenses)
+		{
 			// Update Data
 			realsense->update();
 
@@ -30,10 +34,11 @@ void MultiRealSense::run()
 			realsense->draw();
 
 			// Show Data
-			realsense->show();
+			//realsense->show();
 
 			//viewerに生成したpointcloudを渡して更新
-			viewer->updatePointCloud(realsense->cloud, realsense->cloudName);
+			updateViewerText();
+			viewer->updatePointCloud(realsense->camera_cloud_ptr, realsense->cloudName);
 			viewer->spinOnce();
 		}
 
@@ -58,18 +63,36 @@ void MultiRealSense::initialize()
 	rs2::context context;
 	const rs2::device_list device_list = context.query_devices();
 
+	//context.set_devices_changed_callback([&](rs2::event_information& info)
+	//{
+	//	std::cout << "remove" << std::endl;
+	//	this->removeDevice(info);
+	//	for (auto&&dev : info.get_new_devices())
+	//	{
+	//		if (dev.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME) == platformCameraName)
+	//			continue;
+	//		this->initializeSensor(dev);
+	//	}
+	//});
+
+	//int cameraNum = 0;
 	// Initialize Connected Sensors
-	for (const rs2::device& device : device_list) {
+	for (const rs2::device& device : device_list)
+	{
 		// Check Device
 		// "Platform Camera" is not RealSense Devices
 		const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
-		if (friendly_name == "Platform Camera") {
+		if (friendly_name == platformCameraName)
 			continue;
-		}
+
+		//cameraNum++;
 
 		// Initialize Sensor
 		initializeSensor(device);
 	}
+
+	//if (cameraNum == 0)
+	//	return;
 
 	//PCLのviewerの初期化
 	initializeViewer();
@@ -80,7 +103,8 @@ inline void MultiRealSense::initializeSensor(const rs2::device& device)
 {
 	// Retrive Serial Number (and Friendly Name)
 	//const std::string serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
-	//const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+	const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+	//std::unique_ptr<RealSense> ptr(new SR300());
 
 	//bool enableChangeLaserPower = false;
 
@@ -96,7 +120,13 @@ inline void MultiRealSense::initializeSensor(const rs2::device& device)
 
 	// Add Sensor to Container
 	//realsenses.push_back(std::make_unique<RealSense>(enableChangeLaserPower,serial_number, friendly_name));
-	realsenses.push_back(std::make_unique<RealSense>(device));
+	if (friendly_name == "Intel RealSense SR300")
+		realsenses.push_back(std::make_unique<SR300>(device));
+	else if (friendly_name == "Intel RealSense D415" || friendly_name == "Intel RealSense D435")
+		realsenses.push_back(std::make_unique<D400>(device));
+	else
+		realsenses.push_back(std::make_unique<RealSense>(device));
+	//RealSense *realsense = new D400(device);
 }
 
 inline void MultiRealSense::initializeViewer()
@@ -104,7 +134,7 @@ inline void MultiRealSense::initializeViewer()
 	for (auto i = 0; i < realsenses.size(); i++)
 	{
 		realsenses[i]->cloudName = "cloud" + std::to_string(i);
-		viewer->addPointCloud(realsenses[i]->cloud, realsenses[i]->cloudName);
+		viewer->addPointCloud(realsenses[i]->camera_cloud_ptr, realsenses[i]->cloudName);
 		viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, realsenses[i]->cloudName);
 	}
 
@@ -121,11 +151,29 @@ void MultiRealSense::finalize()
 	viewer->close();
 }
 
+//void MultiRealSense::removeDevice(const rs2::event_information & info)
+//{
+//	//std::lock_guard<std::mutex> lock(_mutex);
+//	// Go over the list of devices and check if it was disconnected
+//	auto itr = realsenses.begin();
+//	while (itr != realsenses.end())
+//	{
+//		if (info.was_removed((*itr)->device))
+//		{
+//			itr = realsenses.erase(itr);
+//		}
+//		else
+//		{
+//			++itr;
+//		}
+//	}
+//}
+
 bool MultiRealSense::keyboardCallBackSettings(int key)
 {
 	cv::Mat tmp;
 
-	if (key==0)
+	if (key == 0)
 		return true;
 
 	switch (key)
@@ -156,35 +204,35 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		break;
 	case 'q': // 終了
 		return false;
-	//case '+':
-	//	for (int i = 0; i < NUM; i++)
-	//	{
-	//		rsu[i].changeThreshold(true);
-	//	}
-	//	break;
-	//case '-':
-	//	for (int i = 0; i < NUM; i++)
-	//	{
-	//		rsu[i].changeThreshold(false);
-	//	}
-	//	break;
-	//case 't':
-	//	for (int i = 1; i < realsenses.size(); i++)
-	//	{
-	//		if (realsenses[0].tip_point_cloud_ptr->size() >= 5 && realsenses[i].tip_point_cloud_ptr->size() >= 5)
-	//		{
-	//			transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(rsu[0].tip_point_cloud_ptr, rsu[i].tip_point_cloud_ptr, Eigen::Matrix4f::Identity());//, transformMat[i]
-	//			transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(rsu[0].hand_point_cloud_ptr, rsu[i].hand_point_cloud_ptr, transformMat[i]);
-	//		}
-	//		else
-	//		{
-	//			if (realsenses[0].tip_point_cloud_ptr->size() < 5)
-	//				std::cout << "The number of points #0 is too small!" << std::endl;
-	//			if (realsenses[i].tip_point_cloud_ptr->size() < 5)
-	//				std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
-	//		}
-	//	}
-	//	break;
+		//case '+':
+		//	for (int i = 0; i < NUM; i++)
+		//	{
+		//		rsu[i].changeThreshold(true);
+		//	}
+		//	break;
+		//case '-':
+		//	for (int i = 0; i < NUM; i++)
+		//	{
+		//		rsu[i].changeThreshold(false);
+		//	}
+		//	break;
+		//case 't':
+		//	for (int i = 1; i < realsenses.size(); i++)
+		//	{
+		//		if (realsenses[0].tip_point_cloud_ptr->size() >= 5 && realsenses[i].tip_point_cloud_ptr->size() >= 5)
+		//		{
+		//			transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(rsu[0].tip_point_cloud_ptr, rsu[i].tip_point_cloud_ptr, Eigen::Matrix4f::Identity());//, transformMat[i]
+		//			transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(rsu[0].hand_point_cloud_ptr, rsu[i].hand_point_cloud_ptr, transformMat[i]);
+		//		}
+		//		else
+		//		{
+		//			if (realsenses[0].tip_point_cloud_ptr->size() < 5)
+		//				std::cout << "The number of points #0 is too small!" << std::endl;
+		//			if (realsenses[i].tip_point_cloud_ptr->size() < 5)
+		//				std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
+		//		}
+		//	}
+		//	break;
 	default:
 		/*if (key != -1)
 		wColorIO(wColorIO::PRINT_VALUE, L"%d\n", key);*/
@@ -297,5 +345,27 @@ void MultiRealSense::keyboardCallback(const pcl::visualization::KeyboardEvent& e
 				key = CV_WAITKEY_CURSORKEY_BOTTOM;
 			keyboardCallBackSettings(key);
 		}
+	}
+}
+
+void MultiRealSense::updateViewerText(void)
+{
+	std::vector<boost::format> entries;
+	for (auto i = 0; i < realsenses.size(); i++)
+	{
+		entries.push_back(boost::format("Cam #%i FPS:%i Num of tip:%i") % i % realsenses[i]->fps % (int)(realsenses[i]->camera_cloud_ptr->size()));
+	}
+
+	const int dx = 5;
+	const int dy = 14;
+	const int fs = 10;
+	boost::format name_fmt("text%i");
+
+	for (size_t i = 0; i < entries.size(); ++i)
+	{
+		std::string name = boost::str(name_fmt % i);
+		std::string entry = boost::str(entries[i]);
+		if (!viewer->updateText(entry, dx, dy + i * (fs + 2), fs, 1.0, 1.0, 1.0, name))
+			viewer->addText(entry, dx, dy + i * (fs + 2), fs, 1.0, 1.0, 1.0, name);
 	}
 }
