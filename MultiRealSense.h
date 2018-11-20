@@ -13,8 +13,6 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl/common/common_headers.h>
-//#include <pcl/features/normal_3d.h>
-//#include <pcl/io/pcd_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/console/parse.h>
@@ -46,9 +44,6 @@ public:
 
 	// Processing
 	void run();
-
-	//デバイスが外された時の処理
-	//void removeDevice(const rs2::event_information& info);
 
 private:
 	// Initialize Sensor センサーの登録

@@ -10,38 +10,9 @@
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/visualization/cloud_viewer.h>
 #include <pcl/io/pcd_io.h>
 
 #include "HandDetect.h"
-//#include <pcl/filters/passthrough.h>
-
-//#include <boost/format.hpp>
-//#include <boost/shared_ptr.hpp>
-//#include <boost/thread/thread.hpp>
-//#include <pcl/common/common_headers.h>
-//#include <pcl/features/normal_3d.h>
-//#include <pcl/io/pcd_io.h>
-//#include <pcl/console/parse.h>
-
-//#include <opencv2\opencv.hpp>
-//#include <opencv2/core/core_c.h>
-//#include <opencv/highgui.h>
-//#include <opencv\cv.h>
-//#include <opencv2\highgui\highgui.hpp>
-//
-//#ifdef _DEBUG
-////Debugモードの場合
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_core2411d.lib")
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_imgproc2411d.lib")
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_highgui2411d.lib")
-//#else
-////Releaseモードの場合
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_core2411.lib")
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_imgproc2411.lib")
-//#pragma comment(lib,"C:\\opencv\\opencv-2.4.11\\build\\x64\\vc12\\lib\\opencv_highgui2411.lib")
-//#endif
 
 class RealSense
 {
@@ -74,8 +45,6 @@ private:
 
 	// We want the points object to be persistent so we can display the last cloud when a frame drops
 	rs2::points points;
-
-	//bool enableChangeLaserPower = false;
 
 	rs2_option optionType = static_cast<rs2_option>(13);
 
@@ -139,8 +108,6 @@ public:
 	std::vector<std::string> cloud_names = { "camera","tip","hand" };
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr calcPointCloud(const rs2::points& points);
-	//pcl::PointCloud<pcl::PointXYZRGB>::Ptr camera_cloud_ptr, tip_cloud_ptr, hand_cloud_ptr;
-	//std::string camera_cloud_name, tip_cloud_name;
 	double fps = 0;
 
 	bool saveData(std::string directory, std::string name);

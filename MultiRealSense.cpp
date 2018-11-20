@@ -25,7 +25,7 @@ void MultiRealSense::run()
 	// Main Loop
 	while (!viewer->wasStopped())//while(1)とかだったらエラーが出る
 	{
-		for (std::unique_ptr<RealSense>& realsense : realsenses)
+		for (auto& realsense : realsenses)
 		{
 			// Update Data
 			realsense->update();
@@ -44,18 +44,12 @@ void MultiRealSense::run()
 					continue;
 				viewer->updatePointCloud(pair.second.cloud, pair.second.name);
 			}
-			//viewer->updatePointCloud(realsense->camera_cloud_ptr, realsense->camera_cloud_name);
-			//viewer->updatePointCloud(realsense->tip_cloud_ptr, realsense->tip_cloud_name);
 			viewer->spinOnce();
 		}
 
 		// Key Check
 		if (!keyboardCallBackSettings(cv::waitKey(10)))
 			break;
-		//const int32_t key = cv::waitKey(10);
-		//if (key == 'q') {
-		//	break;
-		//}
 	}
 }
 
@@ -69,18 +63,6 @@ void MultiRealSense::initialize()
 	// Retrive Connected Sensors List
 	rs2::context context;
 	const rs2::device_list device_list = context.query_devices();
-
-	//context.set_devices_changed_callback([&](rs2::event_information& info)
-	//{
-	//	std::cout << "remove" << std::endl;
-	//	this->removeDevice(info);
-	//	for (auto&&dev : info.get_new_devices())
-	//	{
-	//		if (dev.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME) == platformCameraName)
-	//			continue;
-	//		this->initializeSensor(dev);
-	//	}
-	//});
 
 	//int cameraNum = 0;
 	// Initialize Connected Sensors
@@ -98,9 +80,6 @@ void MultiRealSense::initialize()
 		initializeSensor(device);
 	}
 
-	//if (cameraNum == 0)
-	//	return;
-
 	//PCLのviewerの初期化
 	initializeViewer();
 }
@@ -108,22 +87,7 @@ void MultiRealSense::initialize()
 // Initialize Sensor
 inline void MultiRealSense::initializeSensor(const rs2::device& device)
 {
-	// Retrive Serial Number (and Friendly Name)
-	//const std::string serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
 	const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
-	//std::unique_ptr<RealSense> ptr(new SR300());
-
-	//bool enableChangeLaserPower = false;
-
-	//if (device.supports(RS2_CAMERA_INFO_NAME))
-	//{
-	//	if (device.get_info(RS2_CAMERA_INFO_NAME) == "Intel RealSense SR300")
-	//	{
-	//		enableChangeLaserPower = true;
-	//	}
-	//}
-
-	//auto sensor = device.query_sensors()[0];
 
 	// Add Sensor to Container
 	//realsenses.push_back(std::make_unique<RealSense>(enableChangeLaserPower,serial_number, friendly_name));
@@ -137,25 +101,10 @@ inline void MultiRealSense::initializeSensor(const rs2::device& device)
 	regist_near.push_back(PCL_Regist(1e-2, 0.01, 1000, 5, 1.0e-3));
 	regist_tip.push_back(PCL_Regist(1e-2, 0.2, 1000, 100, 0.0));
 	transformMat.push_back(Eigen::Matrix4f::Identity());
-	//RealSense *realsense = new D400(device);
 }
 
 inline void MultiRealSense::initializeViewer()
 {
-	//for (auto i = 0; i < realsenses.size(); i++)
-	//{
-	//	realsenses[i]->camera_cloud_name = "camera_cloud" + std::to_string(i);
-	//	viewer->addPointCloud(realsenses[i]->camera_cloud_ptr, realsenses[i]->camera_cloud_name);
-	//	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, realsenses[i]->camera_cloud_name);
-	//}
-
-	//for (auto i = 0; i < realsenses.size(); i++)
-	//{
-	//	realsenses[i]->tip_cloud_name = "tip_cloud" + std::to_string(i);
-	//	viewer->addPointCloud(realsenses[i]->tip_cloud_ptr, realsenses[i]->tip_cloud_name);
-	//	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 20.0, realsenses[i]->tip_cloud_name);
-	//}
-
 	for (const auto&realsense : realsenses)
 	{
 		for (const auto& pair : realsense->clouds)
@@ -178,24 +127,6 @@ void MultiRealSense::finalize()
 	viewer->close();
 }
 
-//void MultiRealSense::removeDevice(const rs2::event_information & info)
-//{
-//	//std::lock_guard<std::mutex> lock(_mutex);
-//	// Go over the list of devices and check if it was disconnected
-//	auto itr = realsenses.begin();
-//	while (itr != realsenses.end())
-//	{
-//		if (info.was_removed((*itr)->device))
-//		{
-//			itr = realsenses.erase(itr);
-//		}
-//		else
-//		{
-//			++itr;
-//		}
-//	}
-//}
-
 bool MultiRealSense::keyboardCallBackSettings(int key)
 {
 	cv::Mat tmp;
@@ -212,20 +143,6 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 	case ' ': // 保存
 		CreateDirectory(dataFolderName.c_str(), NULL);
 		CreateDirectory((dataFolderName + "\\" + _time).c_str(), NULL); // 大本のフォルダ作成（名前が時間）
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Color").c_str(), NULL); // color画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth").c_str(), NULL); // depth画像フォルダ作成
-		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandImage").c_str(), NULL); // HandImage画像フォルダ作成
-		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandPoint").c_str(), NULL); // HandPoint画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLHand").c_str(), NULL); // PCLHand画像フォルダ作成
-		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLJoint").c_str(), NULL); // PCLJoint画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLCamera").c_str(), NULL); // PCLCamera画像フォルダ作成
-		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLNear").c_str(), NULL); // PCLNear画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth見る用").c_str(), NULL); // depth見る用画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLTip").c_str(), NULL); // depth見る用画像フォルダ作成
-		//for (int i = 0; i < realsenses.size(); i++)
-		//{
-		//	realsenses[i]->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
-		//}
 		for (const auto &realsense : realsenses)
 		{
 			realsense->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
@@ -234,18 +151,6 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		break;
 	case 'q': // 終了
 		return false;
-		//case '+':
-		//	for (int i = 0; i < NUM; i++)
-		//	{
-		//		rsu[i].changeThreshold(true);
-		//	}
-		//	break;
-		//case '-':
-		//	for (int i = 0; i < NUM; i++)
-		//	{
-		//		rsu[i].changeThreshold(false);
-		//	}
-		//	break;
 	case 't':
 		for (int i = 1; i < realsenses.size(); i++)
 		{
@@ -264,8 +169,6 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		}
 		break;
 	default:
-		/*if (key != -1)
-		wColorIO(wColorIO::PRINT_VALUE, L"%d\n", key);*/
 		return true;
 	}
 
