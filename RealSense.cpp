@@ -1,26 +1,14 @@
 #include "realsense.h"
 
 // Constructor
-//RealSense::RealSense(bool enableChangeLaserPower, const std::string serial_number, const std::string friendly_name) :
-//	serial_number(serial_number),
-//	friendly_name(friendly_name),
-//	enableChangeLaserPower(enableChangeLaserPower),
-//	cloud(new pcl::PointCloud<pcl::PointXYZRGB>)
-//{
-//	// Initialize
-//	initialize();
-//}
-
 RealSense::RealSense(const rs2::device & device) :
-	device(device),
-	camera_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
-	tip_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
-	hand_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>)
+	device(device)//,
+	//camera_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
+	//tip_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>),
+	//hand_cloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>)
 {
 	// Initialize
 	initialize();
-
-	//setLaserPower(range.min);
 
 	nowTime = std::chrono::system_clock::now();
 }
@@ -49,9 +37,6 @@ inline void RealSense::initializeSensor()
 	serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
 	friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
 
-	//if (friendly_name == "Intel RealSense SR300")
-	//	enableChangeLaserPower = true;
-
 	range = device.query_sensors()[0].get_option_range(optionType);
 	// Set Device Config
 	rs2::config config;
@@ -63,6 +48,11 @@ inline void RealSense::initializeSensor()
 	pipeline_profile = pipeline.start(config);
 
 	std::cout << friendly_name << "(" + serial_number + ") enabled" << std::endl;
+
+	for (const auto& name : cloud_names)
+	{
+		clouds.emplace(name, PCL_Container(name+serial_number));
+	}
 }
 
 // Finalize
@@ -92,13 +82,13 @@ inline void RealSense::updateFrame()
 	frameset = pipeline.wait_for_frames();
 }
 
+//データ更新する関数
 inline void RealSense::excuteUpdate()
 {
+	//fps関連の計算
 	prevTime = nowTime;
 	nowTime = std::chrono::system_clock::now();
-
 	auto def = nowTime - prevTime;
-
 	fps = 1000 / std::chrono::duration<double, std::milli>(def).count();
 
 	// Update Frame
@@ -115,7 +105,9 @@ inline void RealSense::excuteUpdate()
 
 	//pointcloud生成
 	pc.map_to(color_frame);
-	camera_cloud_ptr = calcPointCloud(points);
+	clouds.at("camera").cloud = calcPointCloud(points);//camera_cloud_ptr
+	
+	setTipCloud();
 }
 
 // Update Color
@@ -174,10 +166,14 @@ void RealSense::show()
 	showDepth();
 }
 
+/*PointCloudを更新する関数
+ *points[in]:rs2::pointcloud::calculate()で生成したやつ
+ */
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::points & points)
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
 
+	//もともとあったけどいらなそうなやつ
 	//auto sp = points.get_profile().as<rs2::video_stream_profile>();
 	//cloud_temp->width = sp.width();
 	//cloud_temp->height = sp.height();
@@ -193,6 +189,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 	// Create cv::Mat from Vertices and Texture
 	vertices_mat = cv::Mat::zeros(depthSize, CV_32FC3);
 	texture_mat = cv::Mat::zeros(depthSize, CV_8UC3);
+	rawDepthMat = cv::Mat::zeros(depthSize, CV_32FC1);
+	//std::vector<cv::Mat> temp;
 
 	for (int32_t index = 0; index < points.size(); index++)
 	{
@@ -202,34 +200,35 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr RealSense::calcPointCloud(const rs2::poin
 			pcl::PointXYZRGB point;
 			auto vertex = vertices[index];
 			vertices_mat.at<cv::Vec3f>(index) = cv::Vec3f(vertex.x, vertex.y, vertex.z);
-
-			//mmをmに変換(符号はお好みで)
-			point.x = -vertex.x;
-			point.y = -vertex.y;
-			point.z = vertex.z;
+			rawDepthMat.at<float>(index) = vertex.z;//単位:mm
 
 			// Set Texture to cv::Mat const
 			auto texture_coordinate = texture_coordinates[index];
 			uint32_t x = static_cast<uint32_t>(texture_coordinate.u * static_cast<float>(colorSize.width)); // [0.0, 1.0) -> [0, width)
 			uint32_t y = static_cast<uint32_t>(texture_coordinate.v * static_cast<float>(colorSize.height)); // [0.0, 1.0) -> [0, height)
+
+			//これがないとなんか止まる
 			if (x == 0 && y == 0)
 				continue;
+
 			if ((0 <= x) && (x < colorSize.width) && (0 <= y) && (y < colorSize.height))
 			{
 				texture_mat.at<cv::Vec3b>(index) = color_mat.at<cv::Vec3b>(y, x);
-				point.r = color_mat.at<cv::Vec3b>(y, x)[2];
-				point.g = color_mat.at<cv::Vec3b>(y, x)[1];
-				point.b = color_mat.at<cv::Vec3b>(y, x)[0];
+				setPoint(point, color_mat.at<cv::Vec3b>(y, x), vertex);
 			}
 			else
 			{
-				point.r = 255;
-				point.g = 255;
-				point.b = 255;
+				setPoint(point, cv::Vec3b(255, 255, 255), vertex);
 			}
 			cloud_temp->points.push_back(point);
 		}
 	}
+
+	//cv::split(vertices_mat, temp);
+	//rawDepthMat = temp[2];
+
+	//cv::imshow("depth", rawDepthMat);
+
 	return cloud_temp;
 }
 
@@ -265,13 +264,12 @@ inline void RealSense::showDepth()
 	cv::imshow("Depth - " + friendly_name + " (" + serial_number + " )", scale_mat);
 }
 
+/*RealSenseのレーザー出力を設定する
+　*[!]SR300専用関数です．D400シリーズでは必要なのかわかりません．
+  *num[in]:出力値
+ */
 inline void RealSense::setLaserPower(float num)
 {
-	//if (!enableChangeLaserPower)
-	//{
-	//	std::cout << "ret-laser" << std::endl;
-	//	return;
-	//}
 	auto sensor = device.query_sensors()[0];
 	if (!sensor.supports(optionType))
 	{
@@ -288,7 +286,7 @@ inline void RealSense::setLaserPower(float num)
 		//std::cout << "change" << std::endl;
 		try
 		{
-			std::cout << friendly_name << "laser power changed" << std::endl;
+			//std::cout << friendly_name << "laser power changed" << std::endl;
 			sensor.set_option(optionType, num);
 		}
 		catch (const rs2::error& e)
@@ -303,23 +301,46 @@ inline void RealSense::setLaserPower(float num)
 bool RealSense::saveData(std::string directory, std::string name)
 {
 	cv::Mat tmp;
+	std::string _name = name + "(" + serial_number + ")";
 
-	flip(color_mat, tmp, 1); // 反転
-	cv::imwrite(directory + "-Color" + name + ".tif", tmp); // color画像保存
-	flip(depth_mat, tmp, 1); // 反転
-	imwrite(directory + "-Depth見る用" + name + ".tif", tmp * 0x60 / 0x100); // depth見る用画像保存
-	writeDepth(directory + "-Depth" + name); // depth画像保存
+
+	saveFile(directory + "-Color", _name, color_mat);
+	saveFile(directory + "-Depth見る用", _name, depth_mat * 0x60 / 0x100);
+
+	for (const auto& pair : clouds)
+	{
+		saveFile(directory + "-PCL_" + pair.first, _name, pair.second.cloud);
+	}
+
+	//saveFile(directory + "-PCLCamera", name, clouds.at("camera").cloud);
+	//saveFile(directory + "-PCLHand", name, clouds.at("hand").cloud);
+	//saveFile(directory + "-PCLTip", name, clouds.at("tip").cloud);
+	CreateDirectory((directory + "-Depth").c_str(), NULL); // depth画像フォルダ作成
+	writeDepth(directory + "-Depth" + _name); // depth画像保存
+
+	//CreateDirectory((directory + "-Color").c_str(), NULL); // color画像フォルダ作成
+	//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandImage").c_str(), NULL); // HandImage画像フォルダ作成
+	//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandPoint").c_str(), NULL); // HandPoint画像フォルダ作成
+	//CreateDirectory((directory + "-PCLHand").c_str(), NULL); // PCLHand画像フォルダ作成
+	//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLJoint").c_str(), NULL); // PCLJoint画像フォルダ作成
+	//CreateDirectory((directory + "-PCLCamera").c_str(), NULL); // PCLCamera画像フォルダ作成
+	//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLNear").c_str(), NULL); // PCLNear画像フォルダ作成
+	//CreateDirectory((directory + "-Depth見る用").c_str(), NULL); // depth見る用画像フォルダ作成
+	//CreateDirectory((directory + "-PCLTip").c_str(), NULL); // depth見る用画像フォルダ作成
+	//flip(color_mat, tmp, 1); // 反転
+	//cv::imwrite(directory + "-Color" + name + ".tif", tmp); // color画像保存
+	//flip(depth_mat, tmp, 1); // 反転
+	//imwrite(directory + "-Depth見る用" + name + ".tif", tmp * 0x60 / 0x100); // depth見る用画像保存
 	//if (isCloudArrived[CLOUD_CAMERA])
-	if (camera_cloud_ptr->size() != 0)
-		pcl::io::savePCDFileBinary(directory + "-PCLCamera" + name + ".pcd", *camera_cloud_ptr);
+	//if (camera_cloud_ptr->size() != 0)
+	//pcl::io::savePCDFileBinary(directory + "-PCLCamera" + name + ".pcd", *camera_cloud_ptr);
 	//if (isCloudArrived[CLOUD_NEAR])
-	/*if (near_point_cloud_ptr->size() != 0)
-		pcl::io::savePCDFileBinary(directory + "-PCLNear" + name + ".pcd", *near_point_cloud_ptr);*/
-		//if (tip_point_cloud_ptr->size() != 0)
-		//	pcl::io::savePCDFileBinary(directory + "-PCLTip" + name + ".pcd", *tip_point_cloud_ptr);
+	//if (near_point_cloud_ptr->size() != 0)
+	//pcl::io::savePCDFileBinary(directory + "-PCLNear" + name + ".pcd", *near_point_cloud_ptr);*/
+	//if (tip_point_cloud_ptr->size() != 0)
+	//	pcl::io::savePCDFileBinary(directory + "-PCLTip" + name + ".pcd", *tip_point_cloud_ptr);
 
-
-	tmp = readDepth(directory + "-Depth" + name) * 0x60 / 0x10000;
+	tmp = readDepth(directory + "-Depth" + _name) * 0x60 / 0x10000;
 
 	cv::imshow("保存済み", tmp); // 保存したものの表示
 	return true;
@@ -401,21 +422,74 @@ void RealSense::writeDepth(const std::string name)
 	fs.close();
 }
 
+/*点群の点を設定する関数
+ *point[in/out]:設定したい点
+ *color[in]:点の色(形式はcv::Vec3b((uchar)b,(uchar)g,(uchar)r))
+ */
+inline void RealSense::setPoint(pcl::PointXYZRGB & point, const cv::Vec3b color)
+{
+	point.r = color[2];
+	point.g = color[1];
+	point.b = color[0];
+}
+
+/*点群の点を設定する関数
+ *point[in/out]:設定したい点
+ *color[in]:点の色(形式はcv::Vec3b((uchar)b,(uchar)g,(uchar)r))
+ vertex[in]:点の座標(形式はcv::Vec3f((float)x,(float)y,(float)z))
+ */
+inline void RealSense::setPoint(pcl::PointXYZRGB & point, const cv::Vec3b color, cv::Vec3f vertex)
+{
+	point.x = -vertex[0];
+	point.y = -vertex[1];
+	point.z = vertex[2];
+
+	setPoint(point, color);
+}
+
+/*点群の点を設定する関数
+ *point[in/out]:設定したい点
+ *color[in]:点の色(形式はcv::Vec3b((uchar)b,(uchar)g,(uchar)r))
+ vertex[in]:点の座標(形式はrs2::vertex)
+ */
+inline void RealSense::setPoint(pcl::PointXYZRGB & point, const cv::Vec3b color, const rs2::vertex vertex)
+{
+	setPoint(point, color, cv::Vec3f(vertex.x, vertex.y, vertex.z));
+}
+
+inline void RealSense::saveFile(std::string directory, std::string name, cv::Mat data)
+{
+	cv::Mat temp;
+
+	CreateDirectory((directory).c_str(), NULL); // フォルダ作成
+
+	flip(data, temp, 1); // 反転
+	cv::imwrite(directory + name + ".tif", temp); // 画像保存
+}
+
+inline void RealSense::saveFile(std::string directory, std::string name, pcl::PointCloud<pcl::PointXYZRGB>::Ptr data)
+{
+	CreateDirectory((directory).c_str(), NULL);
+
+	if (data->size() != 0)
+		pcl::io::savePCDFileBinary(directory + name + ".pcd", *data);
+}
+
 void RealSense::setTipCloud()
 {
-	HandDetect det(0.2, 0.6);
+	HandDetect det(0.15, 0.6);
 	cv::Mat colorMappedToDepthTemp = texture_mat.clone();
 	cv::Mat tipPosMat = cv::Mat::zeros(depthSize, CV_8U);
 
-	std::vector<cv::Point> tipPos = det.getTipData(depth_mat.clone(), texture_mat.clone());
-	//colorMappedToDepth = det.colorMarked.clone();
+	std::vector<cv::Point> tipPos = det.getTipData(rawDepthMat.clone(), texture_mat.clone());
+	cv::Mat colorMappedToDepth = det.colorMarked.clone();
 	cv::Mat handMask = det.contourMask.clone();
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr tip_cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr hand_cloud_temp(new pcl::PointCloud<pcl::PointXYZRGB>);
 	if (tipPos[0] == cv::Point(-1, -1))
 	{
-		tip_cloud_ptr = tip_cloud_temp;
-		hand_cloud_ptr = hand_cloud_temp;
+		clouds.at("tip").cloud = tip_cloud_temp;//tip_cloud_ptr
+		clouds.at("hand").cloud = hand_cloud_temp;//hand_cloud_ptr
 		return;
 	}
 
@@ -438,30 +512,23 @@ void RealSense::setTipCloud()
 				continue;
 			pcl::PointXYZRGB point;//Unit:m
 
-			point.x = -vertices_mat_ptr[x][0];
-			point.y = -vertices_mat_ptr[x][1];
-			point.z = vertices_mat_ptr[x][2];
 			if (handMaskPtr[x] == 255)
 			{
-				point.r = colorMappedToDepthTempPtr[x][2];
-				point.g = colorMappedToDepthTempPtr[x][1];
-				point.b = colorMappedToDepthTempPtr[x][0];
-
+				setPoint(point, colorMappedToDepthTempPtr[x], vertices_mat_ptr[x]);
 				hand_cloud_temp->points.push_back(point);
 			}
 			if (tipPosMatPtr[x] == 255)
 			{
-				point.r = 255;
-				point.g = 0;
-				point.b = 0;
-
+				setPoint(point, cv::Vec3b(0, 0, 255), vertices_mat_ptr[x]);
 				tip_cloud_temp->points.push_back(point);
 			}
 		}
 	}
 
-	tip_cloud_ptr = tip_cloud_temp;
-	hand_cloud_ptr = hand_cloud_temp;
+	//cv::imshow("img", colorMappedToDepth);
+
+	clouds.at("tip").cloud = tip_cloud_temp;//tip_cloud_ptr
+	clouds.at("hand").cloud = hand_cloud_temp;//hand_cloud_ptr
 }
 
 SR300::SR300(const rs2::device & device) :
@@ -472,7 +539,7 @@ SR300::SR300(const rs2::device & device) :
 
 SR300::~SR300()
 {
-	//RealSense::finalize();
+	setLaserPower(range.def);
 }
 
 void SR300::update()
@@ -489,11 +556,12 @@ void SR300::update()
 D400::D400(const rs2::device & device) :
 	RealSense(device)
 {
+
 }
 
 D400::~D400()
 {
-	//RealSense::finalize();
+
 }
 
 void D400::update()

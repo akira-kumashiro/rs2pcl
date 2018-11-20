@@ -2,6 +2,7 @@
 #define __MULTIREALSENSE__
 
 #include "realsense.h"
+#include "PCL_Regist.h"
 
 #include <librealsense2/rs.hpp>
 #include <opencv2/opencv.hpp>
@@ -32,6 +33,10 @@ private:
 	//pclのviewer
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
+	std::vector<PCL_Regist> regist_tip, regist_near;
+
+	std::vector<Eigen::Matrix4f> transformMat;
+
 public:
 	// Constructor
 	MultiRealSense();
@@ -44,7 +49,7 @@ public:
 
 	//デバイスが外された時の処理
 	//void removeDevice(const rs2::event_information& info);
-	
+
 private:
 	// Initialize Sensor センサーの登録
 	inline void initializeSensor(const rs2::device& device);
@@ -88,7 +93,7 @@ private:
 	int hrgn = 0; // 文字格納用
 
 	std::string _time;
-	
+
 	//どうでもいいWebカメラとかは全部この名前になる
 	const std::string platformCameraName = "Platform Camera";
 };

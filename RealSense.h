@@ -50,10 +50,7 @@ private:
 	rs2::pipeline pipeline;
 	rs2::pipeline_profile pipeline_profile;
 	rs2::frameset frameset;
-
-	std::string serial_number;
-	std::string friendly_name;
-
+	
 	// Color Buffer
 	rs2::frame color_frame;
 	cv::Mat color_mat;
@@ -78,11 +75,29 @@ private:
 	// We want the points object to be persistent so we can display the last cloud when a frame drops
 	rs2::points points;
 
-	bool enableChangeLaserPower = false;
+	//bool enableChangeLaserPower = false;
 
 	rs2_option optionType = static_cast<rs2_option>(13);
 
-	cv::Mat vertices_mat,texture_mat;
+	cv::Mat vertices_mat, texture_mat, rawDepthMat;
+
+	//std::vector<cv::Size> colorSizes = {
+	//cv::Size(320,180),//0
+	//cv::Size(320,240),//1
+	//cv::Size(424,240),//2
+	//cv::Size(640,360),//3
+	//cv::Size(848,480),//4
+	//cv::Size(960,540),//5
+	//cv::Size(1280,720),//6
+	//cv::Size(1920,1080)//7//Å©èdÇ∑Ç¨ÇƒcolorÇæÇØÇ∆ÇÍÇ»Ç≠Ç»Ç¡ÇΩÇËÇ∑ÇÈ
+	//};
+
+	//std::vector<cv::Size> depthSizes = {
+	//	cv::Size(640,240),//0
+	//	cv::Size(640,480)//1
+	//};
+
+
 
 public:
 	// Constructor
@@ -102,10 +117,30 @@ public:
 	void show();
 
 	rs2::device device;
+	
+	class PCL_Container
+	{
+	public:
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
+		std::string name;
+		PCL_Container(std::string name) :
+			name(name),
+			cloud(new pcl::PointCloud<pcl::PointXYZRGB>)
+		{
+
+		}
+
+	};
+	
+	std::string serial_number;
+	std::string friendly_name;
+
+	std::map<std::string, PCL_Container> clouds;
+	std::vector<std::string> cloud_names = { "camera","tip","hand" };
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr calcPointCloud(const rs2::points& points);
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr camera_cloud_ptr,tip_cloud_ptr,hand_cloud_ptr;
-	std::string cloudName;
+	//pcl::PointCloud<pcl::PointXYZRGB>::Ptr camera_cloud_ptr, tip_cloud_ptr, hand_cloud_ptr;
+	//std::string camera_cloud_name, tip_cloud_name;
 	double fps = 0;
 
 	bool saveData(std::string directory, std::string name);
@@ -155,6 +190,14 @@ private:
 
 	cv::Mat readDepth(const std::string name);
 	void writeDepth(const std::string name);
+
+
+	inline void setPoint(pcl::PointXYZRGB &point, const cv::Vec3b color);
+	inline void setPoint(pcl::PointXYZRGB &point, const cv::Vec3b color, const cv::Vec3f vertex);
+	inline void setPoint(pcl::PointXYZRGB &point, const cv::Vec3b color, const rs2::vertex vertex);
+
+	inline void saveFile(std::string directory, std::string name, cv::Mat data);
+	inline void saveFile(std::string directory, std::string name, pcl::PointCloud<pcl::PointXYZRGB>::Ptr data);
 
 protected:
 	rs2::option_range range;
@@ -217,6 +260,22 @@ public:
 	SR300(const rs2::device& device);
 	~SR300();
 
+	//	std::vector<cv::Size> colorSizes = {
+	//cv::Size(320,180),//0
+	//cv::Size(320,240),//1
+	//cv::Size(424,240),//2
+	//cv::Size(640,360),//3
+	//cv::Size(848,480),//4
+	//cv::Size(960,540),//5
+	//cv::Size(1280,720),//6
+	//cv::Size(1920,1080)//7//Å©èdÇ∑Ç¨ÇƒcolorÇæÇØÇ∆ÇÍÇ»Ç≠Ç»Ç¡ÇΩÇËÇ∑ÇÈ
+	//	};
+	//
+	//	std::vector<cv::Size> depthSizes = {
+	//		cv::Size(640,240),//0
+	//		cv::Size(640,480)//1
+	//	};
+
 	void update() override;
 };
 
@@ -225,6 +284,27 @@ class D400 :public RealSense
 public:
 	D400(const rs2::device& device);
 	~D400();
+
+	//		std::vector<cv::Size> colorSizes = {
+	//cv::Size(320,180),//0
+	//cv::Size(320,240),//1
+	//cv::Size(424,240),//2
+	//cv::Size(640,360),//3
+	//cv::Size(848,480),//4
+	//cv::Size(960,540),//5
+	//cv::Size(1280,720),//6
+	//cv::Size(1920,1080)//7//Å©èdÇ∑Ç¨ÇƒcolorÇæÇØÇ∆ÇÍÇ»Ç≠Ç»Ç¡ÇΩÇËÇ∑ÇÈ
+	//	};
+	//
+	//	std::vector<cv::Size> depthSizes = {
+	//		//cv::Size(640,240),//0
+	//		cv::Size(640,480),//1
+	//		cv::Size(424,240),
+	//		cv::Size(480,270),
+	//		cv::Size(640,360),
+	//		cv::Size(848,480),
+	//		cv::Size(1280,720),
+	//	};
 
 	void update() override;
 };

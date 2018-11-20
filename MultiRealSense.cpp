@@ -20,8 +20,8 @@ MultiRealSense::~MultiRealSense()
 // Processing
 void MultiRealSense::run()
 {
-	//if (realsenses.size() == 0)
-	//	return;
+	if (realsenses.size() == 0)
+		return;
 	// Main Loop
 	while (!viewer->wasStopped())//while(1)とかだったらエラーが出る
 	{
@@ -38,7 +38,14 @@ void MultiRealSense::run()
 
 			//viewerに生成したpointcloudを渡して更新
 			updateViewerText();
-			viewer->updatePointCloud(realsense->camera_cloud_ptr, realsense->cloudName);
+			for (const auto& pair : realsense->clouds)
+			{
+				if (pair.first == "hand")
+					continue;
+				viewer->updatePointCloud(pair.second.cloud, pair.second.name);
+			}
+			//viewer->updatePointCloud(realsense->camera_cloud_ptr, realsense->camera_cloud_name);
+			//viewer->updatePointCloud(realsense->tip_cloud_ptr, realsense->tip_cloud_name);
 			viewer->spinOnce();
 		}
 
@@ -126,16 +133,36 @@ inline void MultiRealSense::initializeSensor(const rs2::device& device)
 		realsenses.push_back(std::make_unique<D400>(device));
 	else
 		realsenses.push_back(std::make_unique<RealSense>(device));
+
+	regist_near.push_back(PCL_Regist(1e-2, 0.01, 1000, 5, 1.0e-3));
+	regist_tip.push_back(PCL_Regist(1e-2, 0.2, 1000, 100, 0.0));
+	transformMat.push_back(Eigen::Matrix4f::Identity());
 	//RealSense *realsense = new D400(device);
 }
 
 inline void MultiRealSense::initializeViewer()
 {
-	for (auto i = 0; i < realsenses.size(); i++)
+	//for (auto i = 0; i < realsenses.size(); i++)
+	//{
+	//	realsenses[i]->camera_cloud_name = "camera_cloud" + std::to_string(i);
+	//	viewer->addPointCloud(realsenses[i]->camera_cloud_ptr, realsenses[i]->camera_cloud_name);
+	//	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, realsenses[i]->camera_cloud_name);
+	//}
+
+	//for (auto i = 0; i < realsenses.size(); i++)
+	//{
+	//	realsenses[i]->tip_cloud_name = "tip_cloud" + std::to_string(i);
+	//	viewer->addPointCloud(realsenses[i]->tip_cloud_ptr, realsenses[i]->tip_cloud_name);
+	//	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 20.0, realsenses[i]->tip_cloud_name);
+	//}
+
+	for (const auto&realsense : realsenses)
 	{
-		realsenses[i]->cloudName = "cloud" + std::to_string(i);
-		viewer->addPointCloud(realsenses[i]->camera_cloud_ptr, realsenses[i]->cloudName);
-		viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, realsenses[i]->cloudName);
+		for (const auto& pair : realsense->clouds)
+		{
+			viewer->addPointCloud(pair.second.cloud, pair.second.name);
+			viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, pair.first == "tip" ? 20.0 : 1.0, pair.second.name);
+		}
 	}
 
 	viewer->setBackgroundColor(0, 0, 0);
@@ -185,20 +212,23 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 	case ' ': // 保存
 		CreateDirectory(dataFolderName.c_str(), NULL);
 		CreateDirectory((dataFolderName + "\\" + _time).c_str(), NULL); // 大本のフォルダ作成（名前が時間）
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Color").c_str(), NULL); // color画像フォルダ作成
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth").c_str(), NULL); // depth画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandImage").c_str(), NULL); // HandImage画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandPoint").c_str(), NULL); // HandPoint画像フォルダ作成
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLHand").c_str(), NULL); // PCLHand画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLJoint").c_str(), NULL); // PCLJoint画像フォルダ作成
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLCamera").c_str(), NULL); // PCLCamera画像フォルダ作成
-		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLNear").c_str(), NULL); // PCLNear画像フォルダ作成
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth見る用").c_str(), NULL); // depth見る用画像フォルダ作成
-		CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLTip").c_str(), NULL); // depth見る用画像フォルダ作成
-		for (int i = 0; i < realsenses.size(); i++)
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Color").c_str(), NULL); // color画像フォルダ作成
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth").c_str(), NULL); // depth画像フォルダ作成
+		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandImage").c_str(), NULL); // HandImage画像フォルダ作成
+		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-HandPoint").c_str(), NULL); // HandPoint画像フォルダ作成
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLHand").c_str(), NULL); // PCLHand画像フォルダ作成
+		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLJoint").c_str(), NULL); // PCLJoint画像フォルダ作成
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLCamera").c_str(), NULL); // PCLCamera画像フォルダ作成
+		////CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLNear").c_str(), NULL); // PCLNear画像フォルダ作成
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-Depth見る用").c_str(), NULL); // depth見る用画像フォルダ作成
+		//CreateDirectory((dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn) + "-PCLTip").c_str(), NULL); // depth見る用画像フォルダ作成
+		//for (int i = 0; i < realsenses.size(); i++)
+		//{
+		//	realsenses[i]->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
+		//}
+		for (const auto &realsense : realsenses)
 		{
-			realsenses[i]->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num) + "(" + std::to_string(i) + ")");
-
+			realsense->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
 		}
 		num++;
 		break;
@@ -216,23 +246,23 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		//		rsu[i].changeThreshold(false);
 		//	}
 		//	break;
-		//case 't':
-		//	for (int i = 1; i < realsenses.size(); i++)
-		//	{
-		//		if (realsenses[0].tip_point_cloud_ptr->size() >= 5 && realsenses[i].tip_point_cloud_ptr->size() >= 5)
-		//		{
-		//			transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(rsu[0].tip_point_cloud_ptr, rsu[i].tip_point_cloud_ptr, Eigen::Matrix4f::Identity());//, transformMat[i]
-		//			transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(rsu[0].hand_point_cloud_ptr, rsu[i].hand_point_cloud_ptr, transformMat[i]);
-		//		}
-		//		else
-		//		{
-		//			if (realsenses[0].tip_point_cloud_ptr->size() < 5)
-		//				std::cout << "The number of points #0 is too small!" << std::endl;
-		//			if (realsenses[i].tip_point_cloud_ptr->size() < 5)
-		//				std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
-		//		}
-		//	}
-		//	break;
+	case 't':
+		for (int i = 1; i < realsenses.size(); i++)
+		{
+			if (realsenses[0]->clouds.at("tip").cloud->size() >= 5 && realsenses[i]->clouds.at("tip").cloud->size() >= 5)
+			{
+				transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(realsenses[0]->clouds.at("tip").cloud, realsenses[i]->clouds.at("tip").cloud, Eigen::Matrix4f::Identity());//, transformMat[i]
+				transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(realsenses[0]->clouds.at("hand").cloud, realsenses[i]->clouds.at("hand").cloud, transformMat[i]);
+			}
+			else
+			{
+				if (realsenses[0]->clouds.at("tip").cloud->size() < 5)
+					std::cout << "The number of points #0 is too small!" << std::endl;
+				if (realsenses[i]->clouds.at("tip").cloud->size() < 5)
+					std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
+			}
+		}
+		break;
 	default:
 		/*if (key != -1)
 		wColorIO(wColorIO::PRINT_VALUE, L"%d\n", key);*/
@@ -351,9 +381,9 @@ void MultiRealSense::keyboardCallback(const pcl::visualization::KeyboardEvent& e
 void MultiRealSense::updateViewerText(void)
 {
 	std::vector<boost::format> entries;
-	for (auto i = 0; i < realsenses.size(); i++)
+	for (const auto&realsense : realsenses)
 	{
-		entries.push_back(boost::format("Cam #%i FPS:%i Num of tip:%i") % i % realsenses[i]->fps % (int)(realsenses[i]->camera_cloud_ptr->size()));
+		entries.push_back(boost::format("Cam #%i FPS:%i Num of cloud:%i") % realsense->serial_number % realsense->fps % (int)(realsense->clouds.at("camera").cloud->size()));
 	}
 
 	const int dx = 5;
