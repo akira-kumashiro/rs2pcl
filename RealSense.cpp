@@ -55,6 +55,12 @@ inline void RealSense::initializeSensor()
 // Finalize
 void RealSense::finalize()
 {
+	//for (auto& data : depth_mat_vector)
+	//{
+	//	data.saveImage("Data");
+	//}
+
+
 	// Close Windows
 	cv::destroyAllWindows();
 
@@ -105,6 +111,10 @@ inline void RealSense::excuteUpdate()
 	clouds.at("camera").cloud = calcPointCloud(points);//camera_cloud_ptr
 
 	setTipCloud();
+
+	//auto excuteTime = std::chrono::system_clock::now()-nowTime;
+	//std::cout << serial_number;
+	//wprintf_s(L" excution time=%lf ", std::chrono::duration<double, std::milli>(excuteTime).count());
 }
 
 // Update Color
@@ -151,6 +161,11 @@ inline void RealSense::drawDepth()
 {
 	// Create cv::Mat form Depth Frame
 	depth_mat = cv::Mat(depth_height, depth_width, CV_16SC1, const_cast<void*>(depth_frame.get_data()));
+
+	//cv::Mat temp;
+	//depth_mat.convertTo(temp, CV_8U, 255.0 / 10000.0, 0.0); // 0-10000 -> 0(black)-255(white)
+
+	//depth_mat_vector.push_back(Mat_Container("time"+std::to_string(sleepTime)+"_depth"+serial_number, temp.clone()));
 }
 
 // Show Data
@@ -256,7 +271,7 @@ inline void RealSense::showDepth()
 }
 
 /*RealSenseのレーザー出力を設定する
-　*[!]SR300専用関数です．D400シリーズでは必要なのかわかりません．
+　*[!]SR300専用関数です．D400シリーズでは必要なのかわかりません．(D400でも一応調整はできます)
   *num[in]:出力値
  */
 inline void RealSense::setLaserPower(float num)
@@ -350,7 +365,7 @@ cv::Mat RealSense::readDepth(const std::string name)
 
 void RealSense::writeDepth(const std::string name)
 {
-	cv::Mat matDepth = depth_mat;
+	cv::Mat matDepth = rawDepthMat * 1000;
 	std::fstream fs;
 
 	std::string dir = name;
@@ -490,8 +505,16 @@ void RealSense::setTipCloud()
 		}
 	}
 
-	//cv::imshow("img", colorMappedToDepth);
+	//cv::imshow("img" + serial_number, colorMappedToDepth);
 
+	//for (const auto& images : det.imageList)
+	//{
+	//	saveFile("Data", "\\" + images.name + serial_number + std::to_string(frameNum), images._mat);
+	//}
+	//cv::Mat temp;
+	//depth_mat.convertTo(temp, CV_8U, 255.0 / 10000.0, 0.0); // 0-10000 -> 0(black)-255(white)
+	//saveFile("Data", "\\depth" + serial_number + std::to_string(frameNum), temp);
+	//frameNum++;
 	clouds.at("tip").cloud = tip_cloud_temp;
 	clouds.at("hand").cloud = hand_cloud_temp;
 }
@@ -511,11 +534,15 @@ void SR300::update()
 {
 	setLaserPower(range.def);
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(80));
+	std::this_thread::sleep_for(std::chrono::milliseconds(80));//80
 
 	excuteUpdate();
 
 	setLaserPower(range.min);
+
+	//sleepTime += 2;
+
+	//std::cout << "sleep time:" << std::to_string(sleepTime) << std::endl;
 }
 
 D400::D400(const rs2::device & device) :

@@ -269,3 +269,6 @@ CMakeFiles/*.check_cache
 CMakeFiles/*/
 CMakeCache.txt
 cmake_install.cmake
+#*.tif
+Data*
+

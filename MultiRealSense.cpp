@@ -21,35 +21,44 @@ MultiRealSense::~MultiRealSense()
 void MultiRealSense::run()
 {
 	if (realsenses.size() == 0)
+	{
+		throw std::runtime_error("有効なRealSenseカメラが接続されていません！");
 		return;
+	}
 	// Main Loop
 	while (!viewer->wasStopped())//while(1)とかだったらエラーが出る
 	{
 		for (auto& realsense : realsenses)
 		{
 			// Update Data
-			realsense->update();
+			realsense.second->update();
 
 			// Draw Data
-			realsense->draw();
+			realsense.second->draw();
 
 			// Show Data
 			//realsense->show();
 
 			//viewerに生成したpointcloudを渡して更新
 			updateViewerText();
-			for (const auto& pair : realsense->clouds)
+			for (const auto& pair : realsense.second->clouds)
 			{
-				if (pair.first == "hand")
+				if (pair.first == "camera")
 					continue;
-				viewer->updatePointCloud(pair.second.cloud, pair.second.name);
+				//viewer->updatePointCloud(pair.second.cloud, pair.second.name);
+				viewer->updatePointCloud(regist_near.at(realsense.first).transformPointcloud(pair.second.cloud), pair.second.name);
 			}
 			viewer->spinOnce();
+
+			//if (realsense->sleepTime >= 120)
+			//	return;
 		}
 
 		// Key Check
 		if (!keyboardCallBackSettings(cv::waitKey(10)))
 			break;
+
+
 	}
 }
 
@@ -88,26 +97,27 @@ void MultiRealSense::initialize()
 inline void MultiRealSense::initializeSensor(const rs2::device& device)
 {
 	const std::string friendly_name = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_NAME);
+	const std::string serial_number = device.get_info(rs2_camera_info::RS2_CAMERA_INFO_SERIAL_NUMBER);
 
 	// Add Sensor to Container
 	//realsenses.push_back(std::make_unique<RealSense>(enableChangeLaserPower,serial_number, friendly_name));
 	if (friendly_name == "Intel RealSense SR300")
-		realsenses.push_back(std::make_unique<SR300>(device));
+		realsenses.emplace(serial_number, std::make_unique<SR300>(device));
 	else if (friendly_name == "Intel RealSense D415" || friendly_name == "Intel RealSense D435")
-		realsenses.push_back(std::make_unique<D400>(device));
+		realsenses.emplace(serial_number, std::make_unique<D400>(device));
 	else
-		realsenses.push_back(std::make_unique<RealSense>(device));
+		realsenses.emplace(serial_number, std::make_unique<RealSense>(device));
 
-	regist_near.push_back(PCL_Regist(1e-2, 0.01, 1000, 5, 1.0e-3));
-	regist_tip.push_back(PCL_Regist(1e-2, 0.2, 1000, 100, 0.0));
-	transformMat.push_back(Eigen::Matrix4f::Identity());
+	regist_near.emplace(serial_number, PCL_Regist(1e-5, 0.2, 1000, 5, 2.0e-3));
+	regist_tip.emplace(serial_number, PCL_Regist(1e-5, 1.0, 1000, 20, 0.0));
+	transformMat.emplace(serial_number, Eigen::Matrix4f::Identity());
 }
 
 inline void MultiRealSense::initializeViewer()
 {
 	for (const auto&realsense : realsenses)
 	{
-		for (const auto& pair : realsense->clouds)
+		for (const auto& pair : realsense.second->clouds)
 		{
 			viewer->addPointCloud(pair.second.cloud, pair.second.name);
 			viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, pair.first == "tip" ? 20.0 : 1.0, pair.second.name);
@@ -130,7 +140,7 @@ void MultiRealSense::finalize()
 bool MultiRealSense::keyboardCallBackSettings(int key)
 {
 	cv::Mat tmp;
-
+	const auto beginItr = realsenses.begin();
 	if (key == 0)
 		return true;
 
@@ -145,28 +155,57 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		CreateDirectory((dataFolderName + "\\" + _time).c_str(), NULL); // 大本のフォルダ作成（名前が時間）
 		for (const auto &realsense : realsenses)
 		{
-			realsense->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
+			realsense.second->saveData(dataFolderName + "\\" + _time + "\\" + makeNameFolder(hrgn), "\\" + makeNameFail(hrgn, num));
 		}
 		num++;
 		break;
 	case 'q': // 終了
+		viewer->close();
 		return false;
 	case 't':
-		for (int i = 1; i < realsenses.size(); i++)
+		for (auto itr = std::next(beginItr, 1); itr != realsenses.end(); itr++)
 		{
-			if (realsenses[0]->clouds.at("tip").cloud->size() >= 5 && realsenses[i]->clouds.at("tip").cloud->size() >= 5)
+			//if (itr == realsenses.begin())
+			//	continue;
+			if (beginItr->second->clouds.at("tip").cloud->size() < 5)
 			{
-				transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(realsenses[0]->clouds.at("tip").cloud, realsenses[i]->clouds.at("tip").cloud, Eigen::Matrix4f::Identity());//, transformMat[i]
-				transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(realsenses[0]->clouds.at("hand").cloud, realsenses[i]->clouds.at("hand").cloud, transformMat[i]);
+				std::cout << "The number of points #" + beginItr->first + " is too small!" << std::endl;
+				return true;
 			}
-			else
+			if (itr->second->clouds.at("tip").cloud->size() < 5)
 			{
-				if (realsenses[0]->clouds.at("tip").cloud->size() < 5)
-					std::cout << "The number of points #0 is too small!" << std::endl;
-				if (realsenses[i]->clouds.at("tip").cloud->size() < 5)
-					std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
+				std::cout << "The number of points #" + itr->first + " is too small!" << std::endl;
+				continue;
 			}
+			//if (realsenses.begin()->second->clouds.at("tip").cloud->size() >= 5 && itr->second->clouds.at("tip").cloud->size() >= 5)
+			//{
+			//transformMat.at(itr->first) = transformMat.at(itr->first) * regist_tip.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("tip").cloud, itr->second->clouds.at("tip").cloud, Eigen::Matrix4f::Identity());//, transformMat[i]
+			transformMat.at(itr->first) = transformMat.at(itr->first) * regist_near.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("hand").cloud, itr->second->clouds.at("hand").cloud, transformMat.at(itr->first));
+			//}
+			//else
+			//{
+			//	if (realsenses.begin()->second->clouds.at("tip").cloud->size() < 5)
+			//		std::cout << "The number of points #" + realsenses.begin()->first + " is too small!" << std::endl;
+			//	if (itr->second->clouds.at("tip").cloud->size() < 5)
+			//		std::cout << "The number of points #" + itr->first + " is too small!" << std::endl;
+			//}
 		}
+
+		//for (int i = 1; i < realsenses.size(); i++)
+		//{
+		//	if (realsenses[0]->clouds.at("tip").cloud->size() >= 5 && realsenses[i]->clouds.at("tip").cloud->size() >= 5)
+		//	{
+		//		//transformMat[i] = transformMat[i] * regist_tip[i].getTransformMatrix(realsenses[0]->clouds.at("tip").cloud, realsenses[i]->clouds.at("tip").cloud, Eigen::Matrix4f::Identity());//, transformMat[i]
+		//		transformMat[i] = transformMat[i] * regist_near[i].getTransformMatrix(realsenses[0]->clouds.at("hand").cloud, realsenses[i]->clouds.at("hand").cloud, transformMat[i]);
+		//	}
+		//	else
+		//	{
+		//		if (realsenses[0]->clouds.at("tip").cloud->size() < 5)
+		//			std::cout << "The number of points #0 is too small!" << std::endl;
+		//		if (realsenses[i]->clouds.at("tip").cloud->size() < 5)
+		//			std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
+		//	}
+		//}
 		break;
 	default:
 		return true;
@@ -221,14 +260,15 @@ inline void MultiRealSense::printText(int hrgn, int num)
 	cout << "ディレクトリ：" << makeNameFolder(hrgn) + "\\" + makeNameFail(hrgn, num) << "  ";
 	cout << endl;
 	cout << "操作方法" << endl;
-	cout << "文字：+1…w  -1…s" << endl;
-	cout << "数字：+1…d  -1…a" << endl;
+	cout << "文字：+1…→  -1…←" << endl;
+	cout << "数字：+1…↑  -1…↓" << endl;
 	cout << "保存：スペースキー(自動で次の文字に移行)" << endl;
+	cout << "レジストレーション：t" << endl;
 	cout << "終了：q" << endl;
-	cout << endl;
-	cout << "・ピンクに手を重ねて撮る" << endl;
-	cout << "・なるべく手が黄色い範囲で撮る" << endl;
-	cout << "・白い枠内で撮る" << endl;
+	//cout << endl;
+	//cout << "・ピンクに手を重ねて撮る" << endl;
+	//cout << "・なるべく手が黄色い範囲で撮る" << endl;
+	//cout << "・白い枠内で撮る" << endl;
 	cout << endl;
 }
 
@@ -286,7 +326,7 @@ void MultiRealSense::updateViewerText(void)
 	std::vector<boost::format> entries;
 	for (const auto&realsense : realsenses)
 	{
-		entries.push_back(boost::format("Cam #%i FPS:%i Num of cloud:%i") % realsense->serial_number % realsense->fps % (int)(realsense->clouds.at("camera").cloud->size()));
+		entries.push_back(boost::format("Cam #%i FPS:%i Num of cloud:%i") % realsense.second->serial_number % realsense.second->fps % (int)(realsense.second->clouds.at("camera").cloud->size()));
 	}
 
 	const int dx = 5;

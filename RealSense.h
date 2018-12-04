@@ -38,6 +38,9 @@ private:
 	uint32_t depth_fps = 30;
 	cv::Size depthSize = cv::Size(depth_width, depth_height);
 
+
+
+
 	//pcとpointsはlibrealsense独自規格の点群データ関連
 	//openGLでは使いやすいらしい
 	// Declare pointcloud object, for calculating pointclouds and texture mappings
@@ -112,6 +115,9 @@ public:
 
 	bool saveData(std::string directory, std::string name);
 
+	int sleepTime = 30;
+
+	int frameNum = 0;
 
 private:
 	// Initialize
@@ -168,6 +174,33 @@ private:
 
 protected:
 	rs2::option_range range;
+
+	class Mat_Container
+	{
+	public:
+		cv::Mat mat;
+		std::string name;
+		Mat_Container(std::string name, cv::Mat mat) :
+			name(name),
+			mat(mat)
+		{
+
+		}
+
+		void saveImage(std::string directory)
+		{
+			cv::Mat temp;
+
+			CreateDirectory((directory).c_str(), NULL); // フォルダ作成
+
+			flip(mat, temp, 1); // 反転
+			cv::imwrite(directory +"\\"+ name + ".tif", temp); // 画像保存
+		}
+
+	};
+
+	std::vector<Mat_Container> depth_mat_vector;
+
 private:
 
 	// init()を実行する前に設定する　許可：1

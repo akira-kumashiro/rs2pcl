@@ -22,6 +22,10 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 
 	depthBinaryImage = getBinaryImage();
 
+	//imageList.push_back(MatContainer("binary", depthBinaryImage.clone()));
+	//imageList.push_back(MatContainer("color", colorImage.clone()));
+	//imageList.push_back(MatContainer("depth", depthImage.clone() * 0x60 / 0x10000*1000));
+
 	for (int y = 0; y < colorImage.rows; y++)
 	{
 		uchar* depthBinaryImagePtr = depthBinaryImage.ptr<uchar>(y);
@@ -40,11 +44,15 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 			}
 		}
 	}
+	//imageList.push_back(MatContainer("colorMarked(1)", colorImage.clone()));
 
 	//cv::imshow("binary", depthBinaryImage);
 
 
 	IplImage* src = cvCreateImage(sz, IPL_DEPTH_8U, 3);
+	//IplImage* contour = cvCreateImage(sz, IPL_DEPTH_8U, 3);
+	//IplImage* lines = cvCreateImage(sz, IPL_DEPTH_8U, 3);
+	//IplImage* points = cvCreateImage(sz, IPL_DEPTH_8U, 3);
 	//IplImage* gray = cvCreateImage(cvSize(270, 270), 8, 1);
 	IplImage* gray = cvCreateImage(sz, IPL_DEPTH_8U, 1);
 	IplImage* cMask = cvCreateImage(sz, IPL_DEPTH_8U, 3);
@@ -60,6 +68,9 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 			for (int i = 0; i < 3; i++)
 			{
 				src->imageData[src->widthStep * y + x * 3 + i] = colorPtr[x][i];
+				//contour->imageData[contour->widthStep * y + x * 3 + i] = colorPtr[x][i];
+				//lines->imageData[lines->widthStep * y + x * 3 + i] = colorPtr[x][i];
+				//points->imageData[points->widthStep * y + x * 3 + i] = colorPtr[x][i];
 			}
 			gray->imageData[gray->widthStep * y + x] = depthPtr[x];
 		}
@@ -112,6 +123,7 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 			{
 				CvPoint pt = **CV_GET_SEQ_ELEM(CvPoint*, hull, i);
 				cvLine(src, pt0, pt, CV_RGB(255, 0, 0), 1, CV_AA, 0);
+				//cvLine(contour, pt0, pt, CV_RGB(255, 0, 0), 1, CV_AA, 0);
 				pt0 = pt;
 			}
 			for (; defects; defects = defects->h_next)
@@ -140,6 +152,13 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 						cvCircle(src, *(defectArray[i].start), 5, CV_RGB(0, 255, 0), 2, 8, 0);
 						cvLine(src, *(defectArray[i].depth_point), *(defectArray[i].end), CV_RGB(0, 255, 255), 1, CV_AA, 0);
 						cvDrawContours(src, defects, CV_RGB(0, 0, 0), CV_RGB(255, 0, 0), -1, CV_FILLED, 8);
+
+						//cvDrawContours(contour, defects, CV_RGB(0, 0, 0), CV_RGB(255, 0, 0), -1, CV_FILLED, 8);
+						//cvLine(lines, *(defectArray[i].start), *(defectArray[i].depth_point), CV_RGB(255, 255, 0), 1, CV_AA, 0);
+						//cvLine(lines, *(defectArray[i].depth_point), *(defectArray[i].end), CV_RGB(0, 255, 255), 1, CV_AA, 0);
+						//cvCircle(points, *(defectArray[i].depth_point), 5, CV_RGB(0, 0, 255), 2, 8, 0);
+						//cvCircle(points, *(defectArray[i].start), 5, CV_RGB(0, 255, 0), 2, 8, 0);
+
 						cv::Point temp = cv::Point((*(defectArray[i].start)).x, (*(defectArray[i].start)).y);
 
 						tipPositions.push_back(cv::Point((*(defectArray[i].start)).x, (*(defectArray[i].start)).y));
@@ -192,9 +211,18 @@ std::vector<cv::Point> HandDetect::getTipData(cv::Mat depth, cv::Mat color)
 		}
 	}
 
+	//imageList.push_back(MatContainer("colorMarked", colorMarked));
+	//imageList.push_back(MatContainer("contourMask", contourMask));
+	//imageList.push_back(MatContainer("contour", contour));
+	//imageList.push_back(MatContainer("lines", lines));
+	//imageList.push_back(MatContainer("points", points));
+
 	cvReleaseImage(&src);
 	cvReleaseImage(&gray);
 	cvReleaseImage(&cMask);
+	//cvReleaseImage(&contour);
+	//cvReleaseImage(&lines);
+	//cvReleaseImage(&points);
 	//cvReleaseImage(&cMaskTemp);
 
 	return tipPositions;

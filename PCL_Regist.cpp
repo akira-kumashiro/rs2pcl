@@ -274,16 +274,27 @@ void PCL_Regist::pairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Pt
 		//if the difference between this transformation and the previous one
 		//is smaller than the threshold, refine the process by reducing
 		//the maximal correspondence distance
+		PCL_INFO("transformation distance:%e", fabs((reg.getLastIncrementalTransformation() - prev).sum()));
+
 		if (fabs((reg.getLastIncrementalTransformation() - prev).sum()) < reg.getTransformationEpsilon())
-			reg.setMaxCorrespondenceDistance(reg.getMaxCorrespondenceDistance() - random(0.0, param.transformationEpsilon / param.loopNum));
+			reg.setMaxCorrespondenceDistance(reg.getMaxCorrespondenceDistance() - random(0.0, param.maxCorrespondenceDistance / param.loopNum * 2));
 		else
 			reg.setMaxCorrespondenceDistance(param.maxCorrespondenceDistance);
+		PCL_INFO(" correspondence distance:%lf\n", reg.getMaxCorrespondenceDistance());
+
 		prev = reg.getLastIncrementalTransformation();
 
 		// visualize current state
 		//showCloudsRight(points_with_normals_tgt, points_with_normals_src);
 
 		print4x4Matrix(Ti);
+
+		//if (fabs((reg.getLastIncrementalTransformation() - prev).sum()) == 0.0e+0)
+		//{
+		//	PCL_INFO("no difference between these pointcloud\n");
+		//	reg.setMaxCorrespondenceDistance(param.maxCorrespondenceDistance);
+		//	//break;
+		//}
 	}
 
 	//
@@ -298,7 +309,7 @@ void PCL_Regist::pairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Pt
 
 	std::cout << "Process time:" << diff.count() << "[ms]" << std::endl;
 
-	PCL_INFO("Press q to continue the registration.\n");
+	//PCL_INFO("Press q to continue the registration.\n");
 
 	//add the source to the transformed target
 	*output += *cloud_src;

@@ -26,14 +26,14 @@ class MultiRealSense
 {
 private:
 	// RealSense
-	std::vector<std::unique_ptr<RealSense>> realsenses;
+	std::map<std::string,std::unique_ptr<RealSense>> realsenses;
 
 	//pcl‚Ìviewer
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
-	std::vector<PCL_Regist> regist_tip, regist_near;
+	std::map<std::string,PCL_Regist> regist_tip, regist_near;
 
-	std::vector<Eigen::Matrix4f> transformMat;
+	std::map<std::string,Eigen::Matrix4f> transformMat;
 
 public:
 	// Constructor
