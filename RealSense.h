@@ -119,6 +119,9 @@ public:
 
 	int frameNum = 0;
 
+	void setLaserMax(void);
+	void setLaserMin(void);
+
 private:
 	// Initialize
 	void initialize();

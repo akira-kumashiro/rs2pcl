@@ -20,6 +20,9 @@
 #include <pcl/registration/icp_nl.h>
 #include <pcl/registration/transforms.h>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 //convenient typedefs
 typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> PointCloud;
@@ -103,10 +106,17 @@ public:
 	Eigen::Matrix4f getTransformMatrix(const PointCloud::Ptr cloud_source, const PointCloud::Ptr cloud_target, Eigen::Matrix4f prevTransformation);
 	Eigen::Matrix4f getTransformMatrix(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target, Eigen::Matrix4f prevTransformation);
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformPointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input);
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformPointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input, Eigen::Matrix4f transMat);
 	double singlePairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt, Eigen::Matrix4f mat);
+	Eigen::Matrix4f calcTransformMatrix(float angle);
+	float calcTransformDiff(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target, const Eigen::Matrix4f transform_mat);
+	void calcCenterOfGravity(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target, Eigen::Matrix4f transformMatrix);
+	void calcCenterOfGravity(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target);
 private:
 	//void loadData(int argc, char **argv, std::vector<PCD, Eigen::aligned_allocator<PCD> > &models);
 	void print4x4Matrix(const Eigen::Matrix4f & matrix);
 	double random(double min, double max);
 	void pairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt, PointCloud::Ptr output, Eigen::Matrix4f &final_transform, Eigen::Matrix4f prevTransformation);
+	PointNormalT calcAverage(const PointCloud::Ptr cloud);
+	inline float isNan(float num);
 };

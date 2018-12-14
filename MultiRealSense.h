@@ -31,10 +31,13 @@ private:
 	//pcl‚Ìviewer
 	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
 
-	std::map<std::string,PCL_Regist> regist_tip, regist_near;
+	std::map<std::string,PCL_Regist> regist_tip, regist_near,regist_once;
 
 	std::map<std::string,Eigen::Matrix4f> transformMat;
+	std::map<std::string, Eigen::Matrix4f> transformMat_once;
 
+	bool switchTransformation = false;
+	
 public:
 	// Constructor
 	MultiRealSense();
@@ -60,6 +63,8 @@ private:
 
 	bool keyboardCallBackSettings(int key);
 	void keyboardCallback(const pcl::visualization::KeyboardEvent& event, void*);
+
+	void setCameraAngle(void);
 
 	enum
 	{

@@ -46,7 +46,12 @@ void MultiRealSense::run()
 				if (pair.first == "camera")
 					continue;
 				//viewer->updatePointCloud(pair.second.cloud, pair.second.name);
-				viewer->updatePointCloud(regist_near.at(realsense.first).transformPointcloud(pair.second.cloud), pair.second.name);
+				if (switchTransformation)
+					viewer->updatePointCloud(regist_near.at(realsense.first).transformPointcloud(pair.second.cloud), pair.second.name);
+				else
+					viewer->updatePointCloud(regist_once.at(realsense.first).transformPointcloud(pair.second.cloud), pair.second.name);
+
+				//viewer->updatePointCloud(regist_near.at(realsense.first).transformPointcloud(pair.second.cloud,regist_near.at(realsense.first).calcTransformMatrix(realsense.first=="612203000259"?0.0:30.0)), pair.second.name);
 			}
 			viewer->spinOnce();
 
@@ -108,8 +113,9 @@ inline void MultiRealSense::initializeSensor(const rs2::device& device)
 	else
 		realsenses.emplace(serial_number, std::make_unique<RealSense>(device));
 
-	regist_near.emplace(serial_number, PCL_Regist(1e-5, 0.2, 1000, 5, 2.0e-3));
+	regist_near.emplace(serial_number, PCL_Regist(1e-5, 0.2, 1000, 3, 2.0e-3));
 	regist_tip.emplace(serial_number, PCL_Regist(1e-5, 1.0, 1000, 20, 0.0));
+	regist_once.emplace(serial_number, PCL_Regist(1e-5, 1.0e-10, 1, 1, 0.0));
 	transformMat.emplace(serial_number, Eigen::Matrix4f::Identity());
 }
 
@@ -180,7 +186,11 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 			//if (realsenses.begin()->second->clouds.at("tip").cloud->size() >= 5 && itr->second->clouds.at("tip").cloud->size() >= 5)
 			//{
 			//transformMat.at(itr->first) = transformMat.at(itr->first) * regist_tip.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("tip").cloud, itr->second->clouds.at("tip").cloud, Eigen::Matrix4f::Identity());//, transformMat[i]
+			//transformMat.at(itr->first) = transformMat.at(itr->first) * regist_tip.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("tip").cloud, itr->second->clouds.at("tip").cloud, transformMat.at(itr->first));
 			transformMat.at(itr->first) = transformMat.at(itr->first) * regist_near.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("hand").cloud, itr->second->clouds.at("hand").cloud, transformMat.at(itr->first));
+			//regist_near.at(itr->first).calcCenterOfGravity(beginItr->second->clouds.at("hand").cloud, itr->second->clouds.at("hand").cloud);
+			//transformMat_once.at(itr->first) = transformMat_once.at(itr->first) * regist_once.at(itr->first).getTransformMatrix(beginItr->second->clouds.at("hand").cloud, itr->second->clouds.at("hand").cloud, transformMat_once.at(itr->first));
+			//regist_once.at(itr->first).calcCenterOfGravity(beginItr->second->clouds.at("hand").cloud, itr->second->clouds.at("hand").cloud);
 			//}
 			//else
 			//{
@@ -206,6 +216,13 @@ bool MultiRealSense::keyboardCallBackSettings(int key)
 		//			std::cout << "The number of points #" + std::to_string(i) + " is too small!" << std::endl;
 		//	}
 		//}
+		break;
+	case 'd':
+		switchTransformation = !switchTransformation;
+		wprintf(L"%d\n", (int)switchTransformation);
+		break;
+	case 's':
+		setCameraAngle();
 		break;
 	default:
 		return true;
@@ -318,6 +335,23 @@ void MultiRealSense::keyboardCallback(const pcl::visualization::KeyboardEvent& e
 				key = CV_WAITKEY_CURSORKEY_BOTTOM;
 			keyboardCallBackSettings(key);
 		}
+	}
+}
+
+void MultiRealSense::setCameraAngle(void)
+{
+	for (const auto& realsense : realsenses)
+	{
+		realsense.second->setLaserMin();
+	}
+
+	for (auto itr = std::next(realsenses.begin(), 1); itr != realsenses.end(); itr++)
+	{
+		float degree;
+		itr->second->setLaserMax();
+		scanf_s("%f", &degree);
+		transformMat_once.emplace(itr->first,regist_once.at(itr->first).calcTransformMatrix(degree));
+		itr->second->setLaserMin();
 	}
 }
 

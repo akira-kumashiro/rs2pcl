@@ -17,6 +17,16 @@ RealSense::~RealSense()
 	finalize();
 }
 
+void RealSense::setLaserMax(void)
+{
+	setLaserPower(range.def);
+}
+
+void RealSense::setLaserMin(void)
+{
+	setLaserPower(range.min);
+}
+
 // Initialize
 void RealSense::initialize()
 {
@@ -94,23 +104,27 @@ inline void RealSense::excuteUpdate()
 	auto def = nowTime - prevTime;
 	fps = 1000 / std::chrono::duration<double, std::milli>(def).count();
 
+	if (depth_mat.total() != 0)
+	{
+		// Generate the pointcloud and texture mappings
+		points = pc.calculate(depth_frame);
+
+		//pointcloudê∂ê¨
+		pc.map_to(color_frame);
+		clouds.at("camera").cloud = calcPointCloud(points);//camera_cloud_ptr
+
+		setTipCloud();
+	}
 	// Update Frame
 	updateFrame();
 
 	// Update Depth
 	updateDepth();
 
-	// Generate the pointcloud and texture mappings
-	points = pc.calculate(depth_frame);
-
 	// Update Color
 	updateColor();
 
-	//pointcloudê∂ê¨
-	pc.map_to(color_frame);
-	clouds.at("camera").cloud = calcPointCloud(points);//camera_cloud_ptr
 
-	setTipCloud();
 
 	//auto excuteTime = std::chrono::system_clock::now()-nowTime;
 	//std::cout << serial_number;
@@ -532,13 +546,18 @@ SR300::~SR300()
 
 void SR300::update()
 {
+	//auto now = std::chrono::system_clock::now();
 	setLaserPower(range.def);
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(80));//80
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));//80 40Ç™min
 
 	excuteUpdate();
 
 	setLaserPower(range.min);
+
+	//auto processTime = std::chrono::system_clock::now() - now;
+
+	//wprintf_s(L"process time = %lf[msec]\n", std::chrono::duration<double, std::milli>(processTime).count());
 
 	//sleepTime += 2;
 

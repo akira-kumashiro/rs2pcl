@@ -61,6 +61,13 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PCL_Regist::transformPointcloud(pcl::Poin
 	return output;
 }
 
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr PCL_Regist::transformPointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr input, Eigen::Matrix4f transMat)
+{
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr output(new pcl::PointCloud<pcl::PointXYZRGB>);
+	pcl::transformPointCloud(*input, *output, transMat);
+	return output;
+}
+
 double PCL_Regist::singlePairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt, Eigen::Matrix4f mat)
 {
 	PointCloud::Ptr src(new PointCloud);
@@ -144,6 +151,121 @@ double PCL_Regist::singlePairAlign(const PointCloud::Ptr cloud_src, const PointC
 	//print4x4matrix(Ti);
 //}
 	return fabs((reg.getLastIncrementalTransformation() - prev).sum());
+}
+
+Eigen::Matrix4f PCL_Regist::calcTransformMatrix(float angle)
+{
+	float r = 0.35;
+	float rad = angle * M_PI / 180.0;
+	wprintf_s(L"%lf\n", rad);
+	Eigen::Matrix4f matrix;
+	matrix << std::cos(rad), 0.0, std::sin(rad), -r * std::sin(rad),
+		0.0, 1.0, 0.0, 0.0,
+		-std::sin(rad), 0.0, std::cos(rad), -r * (1.0 - std::cos(rad)),
+		0.0, 0.0, 0.0, 1.0;
+
+	transformMat = matrix;
+
+	print4x4Matrix(matrix);
+
+	return matrix;
+}
+
+float PCL_Regist::calcTransformDiff(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target, const Eigen::Matrix4f transform_mat)
+{
+	return 0.0f;
+}
+
+void PCL_Regist::calcCenterOfGravity(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target, Eigen::Matrix4f transformMatrix)
+{
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr source(new pcl::PointCloud<pcl::PointXYZ>);
+	//pcl::PointCloud<pcl::PointXYZ>::Ptr target(new pcl::PointCloud<pcl::PointXYZ>);
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformedTagret(new pcl::PointCloud<pcl::PointXYZRGB>);
+	transformedTagret = transformPointcloud(cloud_target, transformMatrix);
+
+	PointCloud::Ptr source(new PointCloud), target(new PointCloud);
+	//for (int i = 0; i < cloud_source->size(); i++)
+	//{
+	//	pcl::PointXYZ point;
+	//	point.x = cloud_source->points[i].x;
+	//	point.y = cloud_source->points[i].y;
+	//	point.z = cloud_source->points[i].z;
+	//	source->push_back(point);
+	//}
+
+	for (const auto& source_point : *cloud_source)
+	{
+		PointT point;
+		point.x = source_point.x;
+		point.y = source_point.y;
+		point.z = source_point.z;
+		source->push_back(point);
+	}
+	for (const auto& source_point : *transformedTagret)
+	{
+		PointT point;
+		point.x = source_point.x;
+		point.y = source_point.y;
+		point.z = source_point.z;
+		target->push_back(point);
+	}
+
+	//for (int i = 0; i < cloud_target->size(); i++)
+	//{
+	//	pcl::PointXYZ point;
+	//	point.x = cloud_target->points[i].x;
+	//	point.y = cloud_target->points[i].y;
+	//	point.z = cloud_target->points[i].z;
+	//	target->push_back(point);
+	//}
+
+	//// Compute surface normals and curvature
+	//PointCloudWithNormals::Ptr points_with_normals_src(new PointCloudWithNormals);
+	//PointCloudWithNormals::Ptr points_with_normals_tgt(new PointCloudWithNormals);
+
+	//pcl::NormalEstimation<PointT, PointNormalT> norm_est;
+	//pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+	//norm_est.setSearchMethod(tree);
+	//norm_est.setKSearch(30);
+
+	//norm_est.setInputCloud(source);
+	//norm_est.compute(*points_with_normals_src);
+	//pcl::copyPointCloud(*source, *points_with_normals_src);
+
+	//norm_est.setInputCloud(target);
+	//norm_est.compute(*points_with_normals_tgt);
+	//pcl::copyPointCloud(*target, *points_with_normals_tgt);
+
+	////pcl::PointXYZ source_CoG, target_CoG;
+	PointNormalT source_normal_average = calcAverage(source), target_normal_average = calcAverage(target);
+
+	//for (const auto& source_point : *points_with_normals_src)
+	//{
+	//	source_normal_average.x += source_point.x / points_with_normals_src->size();
+	//	source_normal_average.y += source_point.y / points_with_normals_src->size();
+	//	source_normal_average.z += source_point.z / points_with_normals_src->size();
+	//	source_normal_average.normal_x += source_point.normal_x / points_with_normals_src->size();
+	//	source_normal_average.normal_y += source_point.normal_y / points_with_normals_src->size();
+	//	source_normal_average.normal_z += source_point.normal_z / points_with_normals_src->size();
+	//}
+	//for (const auto& source_point : *points_with_normals_tgt)
+	//{
+	//	target_normal_average.x += source_point.x / points_with_normals_tgt->size();
+	//	target_normal_average.y += source_point.y / points_with_normals_tgt->size();
+	//	target_normal_average.z += source_point.z / points_with_normals_tgt->size();
+	//	target_normal_average.normal_x += source_point.normal_x / points_with_normals_tgt->size();
+	//	target_normal_average.normal_y += source_point.normal_y / points_with_normals_tgt->size();
+	//	target_normal_average.normal_z += source_point.normal_z / points_with_normals_tgt->size();
+	//}
+
+	printf_s("source=(%lf,%lf,%lf),normal=(%lf,%lf,%lf)\n", source_normal_average.x, source_normal_average.y, source_normal_average.z, source_normal_average.normal_x, source_normal_average.normal_y, source_normal_average.normal_z);
+	printf_s("target=(%lf,%lf,%lf),normal=(%lf,%lf,%lf)\n", target_normal_average.x, target_normal_average.y, target_normal_average.z, target_normal_average.normal_x, target_normal_average.normal_y, target_normal_average.normal_z);
+}
+
+void PCL_Regist::calcCenterOfGravity(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_source, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_target)
+{
+	calcCenterOfGravity(cloud_source, cloud_target, transformMat);
 }
 
 //(PCL_ResistParameters::VoxelGlid(0.0005), 1e-2, 0.2, 1000, 100);
@@ -280,7 +402,8 @@ void PCL_Regist::pairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Pt
 			reg.setMaxCorrespondenceDistance(reg.getMaxCorrespondenceDistance() - random(0.0, param.maxCorrespondenceDistance / param.loopNum * 2));
 		else
 			reg.setMaxCorrespondenceDistance(param.maxCorrespondenceDistance);
-		PCL_INFO(" correspondence distance:%lf\n", reg.getMaxCorrespondenceDistance());
+		PCL_INFO(" score:%e correspondence distance:%lf\n", reg.getFitnessScore(), reg.getMaxCorrespondenceDistance());
+		//fitness score ì_åQä‘ÇÃãóó£ÇÃ2èÊÇÃçáåv(à¯êîÇ≈ëŒâûä÷åWÇåvéZÇ∑ÇÈç≈ëÂãóó£ãóó£Çê›íËÇ≈Ç´ÇÈ defaultÇÕdoubleÇÃç≈ëÂíl)
 
 		prev = reg.getLastIncrementalTransformation();
 
@@ -315,6 +438,56 @@ void PCL_Regist::pairAlign(const PointCloud::Ptr cloud_src, const PointCloud::Pt
 	*output += *cloud_src;
 
 	final_transform = targetToSource;
+}
+
+PointNormalT PCL_Regist::calcAverage(const PointCloud::Ptr cloud)
+{
+	// Compute surface normals and curvature
+	PointCloudWithNormals::Ptr points_with_normals(new PointCloudWithNormals);
+
+	pcl::NormalEstimation<PointT, PointNormalT> norm_est;
+	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+	norm_est.setSearchMethod(tree);
+	norm_est.setKSearch(30);
+
+	norm_est.setInputCloud(cloud);
+	norm_est.compute(*points_with_normals);
+	pcl::copyPointCloud(*cloud, *points_with_normals);
+
+	//pcl::PointXYZ source_CoG, target_CoG;
+	PointNormalT normal_average;
+
+	for (const auto& source_point : *points_with_normals)
+	{
+		normal_average.x += source_point.x / points_with_normals->size();
+		normal_average.y += source_point.y / points_with_normals->size();
+		normal_average.z += source_point.z / points_with_normals->size();
+		if (isNan(source_point.normal_x / points_with_normals->size()) == 0.0f)
+			printf("n_x=%lf,%lf\n", source_point.normal_x, points_with_normals->size());
+		else
+			normal_average.normal_x += source_point.normal_x / points_with_normals->size();
+
+		if (isNan(source_point.normal_y / points_with_normals->size()) == 0.0f)
+			printf("n_y=%lf,%lf\n", source_point.normal_y, points_with_normals->size());
+		else
+			normal_average.normal_y += source_point.normal_y / points_with_normals->size();
+
+		if (isNan(source_point.normal_z / points_with_normals->size()) == 0.0f)
+			printf("n_z=%lf,%lf\n", source_point.normal_z, points_with_normals->size());
+		else
+			normal_average.normal_z += source_point.normal_z / points_with_normals->size();
+		//normal_average.normal_y += isNan(source_point.normal_y / points_with_normals->size());
+		//normal_average.normal_z += isNan(source_point.normal_z / points_with_normals->size());
+	}
+	return normal_average;
+}
+
+inline float PCL_Regist::isNan(float num)
+{
+	if (isnan(num))
+		return 0.0f;
+	else
+		return num;
 }
 
 
